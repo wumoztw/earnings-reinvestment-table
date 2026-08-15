@@ -200,13 +200,17 @@ section[data-testid="stSidebar"] { display: none !important; }
 div[data-testid="stRadio"] label { font-size: 13px !important; color: #5A5A5A !important; }
 div[data-testid="stRadio"] label[data-checked="true"] { color: #1C1C1E !important; font-weight:500 !important; }
 .stButton button {
-    background: #1C1C1E !important; color: #F7F5F0 !important;
-    border: none !important; border-radius: 3px !important;
+    background: #2C2C2E !important; color: #F7F5F0 !important;
+    border: none !important; border-radius: 4px !important;
     font-family: 'Noto Sans JP', sans-serif !important;
     font-size: 13px !important; font-weight: 500 !important;
-    letter-spacing: 0.5px !important; padding: 6px 18px !important;
+    letter-spacing: 0.5px !important;
+    padding: 8px 10px !important;
+    min-height: 40px !important;
+    white-space: nowrap !important;
+    line-height: 1.2 !important;
 }
-.stButton button:hover { background: #3A3A3C !important; }
+.stButton button:hover { background: #48484A !important; }
 </style>
 """, unsafe_allow_html=True)
 
