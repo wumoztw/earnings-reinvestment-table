@@ -12,7 +12,7 @@ from modules.utils.twelve_client import has_twelve_data_key
 from modules.utils.finmind_client import has_finmind_token
 from modules.utils.symbol_search import search_symbols, get_tw_stock_list_debug
 
-st.set_page_config(page_title="盈再分析", layout="wide", page_icon="📈")
+st.set_page_config(page_title="盈再分析", layout="wide", page_icon="📈", initial_sidebar_state="expanded")
 
 
 def _yield_to_price(target_yield: float, etf_data) -> float:
@@ -73,6 +73,13 @@ section[data-testid="stSidebar"] .stButton button {
     background: #1C1C1E; color: #F7F5F0; border: none;
     border-radius: 4px; font-weight: 500; letter-spacing: 0.5px;
 }
+button[data-testid="collapsedControl"],
+button[kind="header"] { display: none !important; }
+[data-testid="stSidebarCollapseButton"] { display: none !important; }
+[data-testid="stSidebarCollapseButton"] span { display: none !important; }
+.stSidebarCollapseButton { display: none !important; }
+/* 隱藏 sidebar 頂部多餘空白 */
+section[data-testid="stSidebar"] > div:first-child { padding-top: 16px !important; }
 .sb-label { font-size: 10px; letter-spacing: 2px; color: #8C8579; text-transform: uppercase; margin-bottom: 4px; }
 </style>
 """, unsafe_allow_html=True)
