@@ -113,39 +113,29 @@ section[data-testid="stSidebar"] { display: none !important; }
 }
 .toolbar-divider { width: 1px; height: 24px; background: #DDD8CF; }
 
-/* ── Control Card ── */
-.ctrl-card {
-    background: #EFECE6;
-    border: 1px solid #DDD8CF;
-    border-radius: 8px;
-    padding: 18px 24px 14px;
-    margin-bottom: 28px;
-    display: flex;
-    align-items: stretch;
+/* ── Control Panel (native st.container) ── */
+[data-testid="stVerticalBlockBorderWrapper"]:first-of-type {
+    background: #EFECE6 !important;
+    border-color: #DDD8CF !important;
+    border-radius: 8px !important;
+}
+[data-testid="stVerticalBlockBorderWrapper"]:first-of-type > div {
+    background: #EFECE6 !important;
 }
 .ctrl-brand {
     display: flex;
     flex-direction: column;
     justify-content: center;
-    min-height: 58px;
+    padding: 4px 0;
 }
 .ctrl-brand-name { font-size: 17px; font-weight: 700; letter-spacing: 1px; color: #1C1C1E; line-height: 1.3; }
 .ctrl-brand-sub  { font-size: 9px; letter-spacing: 2.5px; color: #B0AA9F; margin-top: 3px; }
 .ctrl-src        { font-size: 10px; color: #8C8579; margin-top: 6px; letter-spacing: 0.5px; }
-.ctrl-sep        { width: 1px; align-self: stretch; background: #DDD8CF; margin: 2px auto; min-height: 46px; }
 .ctrl-lbl        { font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: #B0AA9F; margin-bottom: 6px; font-weight: 500; }
 .sec-label {
     font-size: 10px; letter-spacing: 3px; text-transform: uppercase;
     color: #8C8579; border-bottom: 1px solid #DDD8CF;
     padding-bottom: 6px; margin: 28px 0 14px;
-}
-
-/* 控制卡片內各區塊對齊 */
-.ctrl-card [data-testid="stHorizontalBlock"] {
-    align-items: flex-end;
-}
-.ctrl-card [data-testid="stButton"] {
-    margin-top: auto;
 }
 
 /* ── Header ── */
@@ -230,57 +220,51 @@ if has_twelve_data_key(): src_bits.append("Twelve Data")
 src_bits.append("yfinance")
 src_label = " → ".join(src_bits)
 
-# 外框卡片開始
-st.markdown('<div class="ctrl-card">', unsafe_allow_html=True)
+with st.container(border=True):
+    col_brand, col_main, col_etf, col_actions = st.columns([1.5, 3.2, 3.2, 1.5])
 
-col_brand, col_sep, col_main, col_etf, col_actions = st.columns([1.5, 0.04, 3.0, 3.2, 1.5])
+    with col_brand:
+        st.markdown(f"""
+        <div class="ctrl-brand">
+          <div class="ctrl-brand-name">盈再分析</div>
+          <div class="ctrl-brand-sub">EARNINGS REINVESTMENT ANALYZER</div>
+          <div class="ctrl-src">{src_label}</div>
+        </div>""", unsafe_allow_html=True)
 
-with col_brand:
-    st.markdown(f"""
-    <div class="ctrl-brand">
-      <div class="ctrl-brand-name">盈再分析</div>
-      <div class="ctrl-brand-sub">EARNINGS REINVESTMENT ANALYZER</div>
-      <div class="ctrl-src">{src_label}</div>
-    </div>""", unsafe_allow_html=True)
+    with col_main:
+        st.markdown('<div class="ctrl-lbl">代號 / 模式</div>', unsafe_allow_html=True)
+        r1, r2 = st.columns([1.6, 1.4])
+        with r1:
+            raw_input = st.text_input("代號", value=st.session_state._raw_input,
+                                      placeholder="2330 · AAPL · 0050",
+                                      label_visibility="collapsed").strip()
+            st.session_state._raw_input = raw_input
+        with r2:
+            mode = st.radio("模式", ["自動", "個股", "ETF"],
+                            index=["自動","個股","ETF"].index(st.session_state.mode),
+                            horizontal=True, label_visibility="collapsed")
+            st.session_state.mode = mode
 
-with col_sep:
-    st.markdown('<div class="ctrl-sep"></div>', unsafe_allow_html=True)
-
-with col_main:
-    st.markdown('<div class="ctrl-lbl">代號 / 模式</div>', unsafe_allow_html=True)
-    r1, r2 = st.columns([1.6, 1.4])
-    with r1:
-        raw_input = st.text_input("代號", value=st.session_state._raw_input,
-                                  placeholder="2330 · AAPL · 0050",
-                                  label_visibility="collapsed").strip()
-        st.session_state._raw_input = raw_input
-    with r2:
-        mode = st.radio("模式", ["自動", "個股", "ETF"],
-                        index=["自動","個股","ETF"].index(st.session_state.mode),
-                        horizontal=True, label_visibility="collapsed")
-        st.session_state.mode = mode
-
-with col_etf:
-    st.markdown('<div class="ctrl-lbl">ETF 快速選股</div>', unsafe_allow_html=True)
-    e1, e2 = st.columns([1, 1.4])
-    with e1:
-        categories = get_etf_categories()
-        selected_cat = st.selectbox("類別", list(categories.keys()),
-                                    label_visibility="collapsed")
-    with e2:
-        etf_options = categories[selected_cat]
-        etf_labels = [f"{e['symbol']} {e['name']}" for e in etf_options]
-        selected_etf_idx = st.selectbox("ETF", range(len(etf_labels)),
-                                        format_func=lambda i: etf_labels[i],
+    with col_etf:
+        st.markdown('<div class="ctrl-lbl">ETF 快速選股</div>', unsafe_allow_html=True)
+        e1, e2 = st.columns([1, 1.4])
+        with e1:
+            categories = get_etf_categories()
+            selected_cat = st.selectbox("類別", list(categories.keys()),
                                         label_visibility="collapsed")
+        with e2:
+            etf_options = categories[selected_cat]
+            etf_labels = [f"{e['symbol']} {e['name']}" for e in etf_options]
+            selected_etf_idx = st.selectbox("ETF", range(len(etf_labels)),
+                                            format_func=lambda i: etf_labels[i],
+                                            label_visibility="collapsed")
 
-with col_actions:
-    st.markdown('<div class="ctrl-lbl">執行</div>', unsafe_allow_html=True)
-    b1, b2 = st.columns(2)
-    go_btn  = b1.button("分析", use_container_width=True, type="primary")
-    etf_btn = b2.button("套用ETF", use_container_width=True)
+    with col_actions:
+        st.markdown('<div class="ctrl-lbl">執行</div>', unsafe_allow_html=True)
+        b1, b2 = st.columns(2)
+        go_btn  = b1.button("分析", use_container_width=True, type="primary")
+        etf_btn = b2.button("套用ETF", use_container_width=True)
 
-st.markdown('</div>', unsafe_allow_html=True)
 
 # 搜尋連結（非直接代號時顯示）
 _is_direct = bool(_re.fullmatch(r"[A-Za-z0-9\.\-]{1,10}", raw_input))
