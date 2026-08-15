@@ -5,6 +5,7 @@
 - 多組可能的 yfinance 標籤容錯
 - 年份對齊
 - 抓取 5 點選股原則所需欄位：配息率、董監/內部人持股、上市年數、最新淨利
+- 磁碟快取 6 小時
 """
 import yfinance as yf
 import pandas as pd
@@ -13,6 +14,7 @@ from datetime import datetime, timezone
 from typing import Optional, List
 from core.interfaces import BaseFetcher
 from core.schemas import StockData
+from modules.utils.cache import cached
 
 
 class UniversalFetcher(BaseFetcher):
@@ -46,12 +48,12 @@ class UniversalFetcher(BaseFetcher):
         "Other Long Term Investments",
     ]
 
+    @cached("stock_fetch", ttl=6*3600)
     def fetch(self, symbol: str) -> StockData:
         clean = symbol.strip().upper()
         ticker_symbol = f"{clean}.TW" if clean.isdigit() else clean
         ticker = yf.Ticker(ticker_symbol)
 
-        # ── 1. 取得財報 ──
         try:
             bs = ticker.balance_sheet
             inc = ticker.financials
@@ -64,7 +66,6 @@ class UniversalFetcher(BaseFetcher):
                 "或 yfinance 暫不支援該標的。"
             )
 
-        # ── 2. 對齊共同年份 ──
         bs_years = {col.year: col for col in bs.columns if hasattr(col, "year")}
         inc_years = {col.year: col for col in inc.columns if hasattr(col, "year")}
         common_years = sorted(set(bs_years.keys()) & set(inc_years.keys()))
@@ -100,7 +101,6 @@ class UniversalFetcher(BaseFetcher):
         df["long_term_invest"] = df["long_term_invest"].fillna(0.0)
         df = df.sort_index(ascending=True)
 
-        # ── 3. 資料品質 ──
         required_cols = ["net_income", "equity", "fixed_assets"]
         missing_ratio = df[required_cols].isna().mean().mean()
         if missing_ratio > 0.5:
@@ -115,7 +115,6 @@ class UniversalFetcher(BaseFetcher):
                 f"股票 {clean} 最新一期淨利或股東權益缺失，無法進行估值。"
             )
 
-        # ── 4. info 與價格 ──
         try:
             info = ticker.info or {}
         except Exception:
@@ -158,7 +157,6 @@ class UniversalFetcher(BaseFetcher):
 
         market = "TW" if clean.isdigit() else "US"
 
-        # ── 5. 新增：5點選股原則相關欄位 ──
         payout_ratio: Optional[float] = None
         pr = info.get("payoutRatio")
         if pr is not None:
