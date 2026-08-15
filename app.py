@@ -91,11 +91,18 @@ if search_query:
         with st.spinner("搜尋中..."):
             search_results = search_symbols(search_query, max_results=8)
     if search_results:
-        options = [f"{r['symbol']}｜{r['name']}｜{r['exchange']}" for r in search_results]
-        selected = st.sidebar.selectbox("搜尋結果（點選後按套用）", options, key="search_result_select")
+        options = {
+            f"{r['symbol']}｜{r['name']}｜{r['exchange']}": r["symbol"]
+            for r in search_results
+        }
+        selected_label = st.sidebar.selectbox(
+            "搜尋結果（選擇後按套用）",
+            list(options.keys()),
+            key="search_result_select",
+        )
         if st.sidebar.button("📌 套用此代號", key="apply_search_symbol", type="secondary"):
-            selected_symbol = search_results[options.index(selected)]["symbol"]
-            st.session_state.symbol = selected_symbol
+            st.session_state.symbol = options[selected_label]
+            st.session_state["search_query_input"] = ""  # 清空搜尋框
             st.rerun()
     else:
         st.sidebar.caption("❌ 找不到符合的股票，請換個關鍵字試試。")
