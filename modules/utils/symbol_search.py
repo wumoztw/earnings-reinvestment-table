@@ -127,6 +127,48 @@ def _search_finmind_tw(query: str, max_results: int = 8) -> List[Dict]:
         return []
 
 
+# ---------- 中文公司名稱對照表 ----------
+
+_ZH_TO_EN: dict = {
+    # 科技
+    "蘋果": "Apple", "微軟": "Microsoft", "谷歌": "Google", "字母": "Alphabet",
+    "亞馬遜": "Amazon", "臉書": "Meta", "元宇宙": "Meta", "特斯拉": "Tesla",
+    "英偉達": "NVIDIA", "輝達": "NVIDIA", "超微": "AMD", "英特爾": "Intel",
+    "高通": "Qualcomm", "博通": "Broadcom", "德州儀器": "Texas Instruments",
+    "應用材料": "Applied Materials", "科磊": "KLA", "泛林": "Lam Research",
+    "甲骨文": "Oracle", "賽富時": "Salesforce", "服務今": "ServiceNow",
+    "雪花": "Snowflake", "數據磚": "Databricks", "優步": "Uber",
+    "愛彼迎": "Airbnb", "奈飛": "Netflix", "迪士尼": "Disney",
+    "推特": "Twitter", "領英": "LinkedIn", "貝寶": "PayPal",
+    "威士": "Visa", "萬事達": "Mastercard", "美國運通": "American Express",
+    # 金融
+    "摩根大通": "JPMorgan", "高盛": "Goldman Sachs", "摩根士丹利": "Morgan Stanley",
+    "美國銀行": "Bank of America", "花旗": "Citigroup", "富國銀行": "Wells Fargo",
+    "波克夏": "Berkshire Hathaway", "巴菲特": "Berkshire Hathaway",
+    # 消費
+    "可口可樂": "Coca Cola", "百事可樂": "PepsiCo", "麥當勞": "McDonald",
+    "星巴克": "Starbucks", "耐吉": "Nike", "愛迪達": "Adidas",
+    "沃爾瑪": "Walmart", "好市多": "Costco", "亞馬遜": "Amazon",
+    "輝瑞": "Pfizer", "嬌生": "Johnson Johnson", "默克": "Merck",
+    "禮來": "Eli Lilly", "諾和諾德": "Novo Nordisk",
+    # 能源/工業
+    "埃克森美孚": "ExxonMobil", "雪佛龍": "Chevron", "波音": "Boeing",
+    "通用電氣": "GE", "開拓重工": "Caterpillar", "3M": "3M",
+    # 中概股
+    "阿里巴巴": "Alibaba", "騰訊": "Tencent", "百度": "Baidu",
+    "京東": "JD", "拼多多": "PDD", "美團": "Meituan",
+    "小米": "Xiaomi", "比亞迪": "BYD", "蔚來": "NIO",
+    "理想": "Li Auto", "小鵬": "XPeng",
+}
+
+def _translate_zh_query(query: str) -> str:
+    """若查詢包含中文，嘗試對照表轉成英文關鍵字。找不到則回傳原字串。"""
+    for zh, en in _ZH_TO_EN.items():
+        if zh in query:
+            return en
+    return query
+
+
 # ---------- yfinance 搜尋 ----------
 
 def _search_yfinance(query: str, max_results: int = 8) -> List[Dict]:
@@ -214,8 +256,15 @@ def search_symbols(query: str, max_results: int = 8) -> List[Dict]:
         half = max(max_results // 2, 4)
         add(_search_twse(query, half))
         add(_search_finmind_tw(query, half))
-        # yfinance 支援中文搜尋美股（例如「蘋果」→ AAPL）
-        add(_search_yfinance(query, half))
+        # 嘗試對照表轉英文後搜美股
+        en_query = _translate_zh_query(query)
+        if en_query != query:
+            # 有對照到 → 用英文搜 Twelve Data + yfinance
+            add(_search_twelve(en_query, half))
+            add(_search_yfinance(en_query, half))
+        else:
+            # 無對照 → 直接用中文試 yfinance（成效有限但聊勝於無）
+            add(_search_yfinance(query, half))
 
     else:
         # 英文 → 全球（Twelve Data + yfinance）
