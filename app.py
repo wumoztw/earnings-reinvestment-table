@@ -82,28 +82,26 @@ mode = st.sidebar.radio(
 st.session_state.mode = mode
 
 st.sidebar.divider()
-st.sidebar.subheader("🔎 不知道代號？搜尋公司名稱")
 
-# clear_search 旗標：套用代號後下一次渲染清空搜尋框
-if "clear_search" not in st.session_state:
-    st.session_state.clear_search = False
-if st.session_state.clear_search:
-    st.session_state.clear_search = False
-    st.session_state._search_value = ""
-_search_val = st.session_state.get("_search_value", "")
+# 單一輸入框：直接輸入代號 or 公司名稱
+_input_val = st.session_state.get("_symbol_input_val", st.session_state.symbol)
+raw_input = st.sidebar.text_input(
+    "🔎 輸入代號或公司名稱",
+    value=_input_val,
+    placeholder="例：2330 / AAPL / 台積電 / Apple",
+    key="unified_input",
+).strip()
+st.session_state._symbol_input_val = raw_input
 
-search_query = st.sidebar.text_input(
-    "輸入公司名稱或關鍵字（中文/英文皆可）",
-    value=_search_val,
-    placeholder="例：台積電 / Apple / 聯發科",
-)
-# 同步回 session_state 讓下次渲染用
-st.session_state._search_value = search_query
+# 判斷是否為純代號（純英數或純數字），直接使用；否則做搜尋
+import re as _re
+_is_direct = bool(_re.fullmatch(r"[A-Za-z0-9\.\-]{1,10}", raw_input))
 
-if search_query:
+if raw_input and not _is_direct:
+    # 有非代號字元（中文/空白）→ 搜尋模式
     with st.sidebar:
         with st.spinner("搜尋中..."):
-            search_results = search_symbols(search_query, max_results=8)
+            search_results = search_symbols(raw_input, max_results=8)
     if search_results:
         options = {
             f"{r['symbol']}｜{r['name']}｜{r['exchange']}": r["symbol"]
@@ -115,17 +113,15 @@ if search_query:
         )
         if st.sidebar.button("📌 套用此代號", key="apply_search_symbol", type="secondary"):
             st.session_state.symbol = options[selected_label]
-            st.session_state.clear_search = True
+            st.session_state._symbol_input_val = options[selected_label]
             st.rerun()
     else:
         st.sidebar.caption("❌ 找不到符合的股票，請換個關鍵字試試。")
-
-st.sidebar.divider()
-symbol_input = st.sidebar.text_input(
-    "輸入代號 (台股: 2330 / 美股: AAPL / ETF: 0050)",
-    value=st.session_state.symbol,
-    key="symbol_input_box",
-).strip().upper()
+    symbol_input = st.session_state.symbol  # 維持上一次成功的代號
+elif raw_input and _is_direct:
+    symbol_input = raw_input.upper()
+else:
+    symbol_input = st.session_state.symbol
 
 if mode in ["自動偵測", "台灣 ETF"]:
     st.sidebar.divider()
