@@ -70,3 +70,40 @@ class TwelveDataClient:
             df = pd.DataFrame(data["values"])
             return df
         return pd.DataFrame()
+
+    def _fetch_financials(self, endpoint: str, symbol: str, period: str = "annual",
+                          outputsize: int = 8, exchange: Optional[str] = None,
+                          country: Optional[str] = None) -> Dict[str, Any]:
+        """通用財報請求，回傳原始 JSON dict。"""
+        url = f"{self.base_url}/{endpoint}"
+        params: Dict[str, Any] = {
+            "symbol": symbol,
+            "period": period,
+            "outputsize": outputsize,
+        }
+        if exchange:
+            params["exchange"] = exchange
+        if country:
+            params["country"] = country
+        if self.apikey:
+            params["apikey"] = self.apikey
+
+        response = requests.get(url, params=params, timeout=20)
+        response.raise_for_status()
+        data = response.json()
+
+        if data.get("status") == "error":
+            raise TwelveDataError(f"Twelve Data [{endpoint}] 錯誤：{data.get('message', data)}")
+        return data
+
+    def income_statement(self, symbol: str, period: str = "annual",
+                         outputsize: int = 8, exchange: Optional[str] = None,
+                         country: Optional[str] = None) -> Dict[str, Any]:
+        """取得損益表，回傳含 income_statement list 的 dict。"""
+        return self._fetch_financials("income_statement", symbol, period, outputsize, exchange, country)
+
+    def balance_sheet(self, symbol: str, period: str = "annual",
+                      outputsize: int = 8, exchange: Optional[str] = None,
+                      country: Optional[str] = None) -> Dict[str, Any]:
+        """取得資產負債表，回傳含 balance_sheet list 的 dict。"""
+        return self._fetch_financials("balance_sheet", symbol, period, outputsize, exchange, country)
