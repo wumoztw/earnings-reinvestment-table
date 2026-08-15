@@ -182,8 +182,9 @@ def _search_twelve(query: str, max_results: int = 8) -> List[Dict]:
 def search_symbols(query: str, max_results: int = 8) -> List[Dict]:
     """
     統一搜尋入口。
-    - 台股查詢（數字 or 中文）：TWSE/TPEx → FinMind → yfinance
-    - 美股/全球查詢：Twelve Data → yfinance
+    - 純數字：只搜台股
+    - 中文：台股（TWSE/TPEx → FinMind）+ 美股（yfinance 支援中文），結果合併
+    - 英文：Twelve Data → yfinance（全球）
     """
     query = query.strip()
     if not query:
@@ -199,13 +200,25 @@ def search_symbols(query: str, max_results: int = 8) -> List[Dict]:
                 seen.add(sym)
                 results.append(item)
 
-    if _is_tw_query(query):
+    is_number = bool(re.fullmatch(r"\d{2,6}", query))
+    is_chinese = bool(re.search(r"[\u4e00-\u9fff]", query))
+
+    if is_number:
+        # 純數字 → 只搜台股
         add(_search_twse(query, max_results))
         if len(results) < max_results:
             add(_search_finmind_tw(query, max_results))
-        if len(results) < max_results:
-            add(_search_yfinance(query, max_results))
+
+    elif is_chinese:
+        # 中文 → 台股 + 美股同時搜，各取一半配額後合併
+        half = max(max_results // 2, 4)
+        add(_search_twse(query, half))
+        add(_search_finmind_tw(query, half))
+        # yfinance 支援中文搜尋美股（例如「蘋果」→ AAPL）
+        add(_search_yfinance(query, half))
+
     else:
+        # 英文 → 全球（Twelve Data + yfinance）
         add(_search_twelve(query, max_results))
         if len(results) < max_results:
             add(_search_yfinance(query, max_results))
