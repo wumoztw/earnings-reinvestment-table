@@ -236,7 +236,7 @@ with st.container(border=True):
         </div>""", unsafe_allow_html=True)
 
     with col_main:
-        st.markdown('<div class="ctrl-lbl">代號 / 輸入</div>', unsafe_allow_html=True)
+        st.markdown('<div class="ctrl-lbl">輸入：台股／美股股票代號</div>', unsafe_allow_html=True)
         raw_input = st.text_input("代號", value=st.session_state._raw_input,
                                   placeholder="2330 · AAPL · 0050",
                                   label_visibility="collapsed").strip()
