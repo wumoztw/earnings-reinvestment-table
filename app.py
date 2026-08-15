@@ -113,7 +113,20 @@ section[data-testid="stSidebar"] { display: none !important; }
 }
 .toolbar-divider { width: 1px; height: 24px; background: #DDD8CF; }
 
-/* ── section label ── */
+/* ── Control Card ── */
+.ctrl-card {
+    background: #EFECE6;
+    border: 1px solid #DDD8CF;
+    border-radius: 8px;
+    padding: 16px 20px 12px;
+    margin-bottom: 28px;
+}
+.ctrl-brand { padding-top: 2px; }
+.ctrl-brand-name { font-size: 16px; font-weight: 700; letter-spacing: 1px; color: #1C1C1E; }
+.ctrl-brand-sub  { font-size: 9px; letter-spacing: 2.5px; color: #B0AA9F; margin-top: 2px; }
+.ctrl-src        { font-size: 10px; color: #8C8579; margin-top: 6px; letter-spacing: 0.5px; }
+.ctrl-sep        { width: 1px; height: 60px; background: #DDD8CF; margin: 4px auto; }
+.ctrl-lbl        { font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: #B0AA9F; margin-bottom: 4px; }
 .sec-label {
     font-size: 10px; letter-spacing: 3px; text-transform: uppercase;
     color: #8C8579; border-bottom: 1px solid #DDD8CF;
@@ -194,7 +207,7 @@ div[data-testid="stRadio"] label[data-checked="true"] { color: #1C1C1E !importan
 
 
 # ══════════════════════════════════════════
-#  Toolbar（頂部控制列）
+#  Control Panel（頂部控制卡片）
 # ══════════════════════════════════════════
 src_bits = []
 if has_finmind_token(): src_bits.append("FinMind")
@@ -202,49 +215,57 @@ if has_twelve_data_key(): src_bits.append("Twelve Data")
 src_bits.append("yfinance")
 src_label = " → ".join(src_bits)
 
-t_brand, t_div1, t_input, t_mode, t_etf_cat, t_etf_sel, t_btn, t_src = st.columns(
-    [1.4, 0.05, 1.6, 1.2, 1.0, 1.2, 0.6, 1.4])
+# 外框卡片開始
+st.markdown('<div class="ctrl-card">', unsafe_allow_html=True)
 
-with t_brand:
-    st.markdown("""
-    <div style="padding-top:6px;">
-      <div class="toolbar-brand">盈再分析</div>
-      <div class="toolbar-sub">EARNINGS REINVESTMENT ANALYZER</div>
+col_brand, col_sep, col_main, col_etf, col_actions = st.columns([1.6, 0.05, 3.2, 3.2, 1.4])
+
+with col_brand:
+    st.markdown(f"""
+    <div class="ctrl-brand">
+      <div class="ctrl-brand-name">盈再分析</div>
+      <div class="ctrl-brand-sub">EARNINGS REINVESTMENT ANALYZER</div>
+      <div class="ctrl-src">{src_label}</div>
     </div>""", unsafe_allow_html=True)
 
-with t_div1:
-    st.markdown('<div style="width:1px;height:40px;background:#DDD8CF;margin-top:4px;"></div>', unsafe_allow_html=True)
+with col_sep:
+    st.markdown('<div class="ctrl-sep"></div>', unsafe_allow_html=True)
 
-with t_input:
-    raw_input = st.text_input("代號", value=st.session_state._raw_input,
-                              placeholder="2330 · AAPL · 0050",
-                              label_visibility="collapsed").strip()
-    st.session_state._raw_input = raw_input
+with col_main:
+    st.markdown('<div class="ctrl-lbl">代號 / 模式</div>', unsafe_allow_html=True)
+    r1, r2 = st.columns([1.6, 1.4])
+    with r1:
+        raw_input = st.text_input("代號", value=st.session_state._raw_input,
+                                  placeholder="2330 · AAPL · 0050",
+                                  label_visibility="collapsed").strip()
+        st.session_state._raw_input = raw_input
+    with r2:
+        mode = st.radio("模式", ["自動", "個股", "ETF"],
+                        index=["自動","個股","ETF"].index(st.session_state.mode),
+                        horizontal=True, label_visibility="collapsed")
+        st.session_state.mode = mode
 
-with t_mode:
-    mode = st.radio("模式", ["自動", "個股", "ETF"],
-                    index=["自動","個股","ETF"].index(st.session_state.mode),
-                    horizontal=True, label_visibility="collapsed")
-    st.session_state.mode = mode
-
-categories = get_etf_categories()
-with t_etf_cat:
-    selected_cat = st.selectbox("ETF類別", list(categories.keys()),
-                                label_visibility="collapsed")
-with t_etf_sel:
-    etf_options = categories[selected_cat]
-    etf_labels = [f"{e['symbol']} {e['name']}" for e in etf_options]
-    selected_etf_idx = st.selectbox("ETF", range(len(etf_labels)),
-                                    format_func=lambda i: etf_labels[i],
+with col_etf:
+    st.markdown('<div class="ctrl-lbl">ETF 快速選股</div>', unsafe_allow_html=True)
+    e1, e2 = st.columns([1, 1.4])
+    with e1:
+        categories = get_etf_categories()
+        selected_cat = st.selectbox("類別", list(categories.keys()),
                                     label_visibility="collapsed")
-with t_btn:
-    st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
-    col_go, col_etf = st.columns(2)
-    go_btn  = col_go.button("分析", use_container_width=True)
-    etf_btn = col_etf.button("套用", use_container_width=True)
+    with e2:
+        etf_options = categories[selected_cat]
+        etf_labels = [f"{e['symbol']} {e['name']}" for e in etf_options]
+        selected_etf_idx = st.selectbox("ETF", range(len(etf_labels)),
+                                        format_func=lambda i: etf_labels[i],
+                                        label_visibility="collapsed")
 
-with t_src:
-    st.markdown(f'<div style="padding-top:8px;font-size:10px;letter-spacing:1px;color:#B0AA9F;line-height:1.6;">資料來源<br><span style="color:#8C8579;">{src_label}</span></div>', unsafe_allow_html=True)
+with col_actions:
+    st.markdown('<div class="ctrl-lbl">執行</div>', unsafe_allow_html=True)
+    b1, b2 = st.columns(2)
+    go_btn  = b1.button("分析", use_container_width=True, type="primary")
+    etf_btn = b2.button("套用ETF", use_container_width=True)
+
+st.markdown('</div>', unsafe_allow_html=True)
 
 # 搜尋連結（非直接代號時顯示）
 _is_direct = bool(_re.fullmatch(r"[A-Za-z0-9\.\-]{1,10}", raw_input))
