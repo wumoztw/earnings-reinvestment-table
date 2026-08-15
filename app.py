@@ -60,7 +60,7 @@ def _sig_cls(signal):
 
 
 # ── session state ──
-for k, v in [("symbol","2330"), ("mode","自動"), ("_raw_input","2330")]:
+for k, v in [("symbol","2330"), ("_raw_input","2330")]:
     if k not in st.session_state:
         st.session_state[k] = v
 
@@ -236,18 +236,12 @@ with st.container(border=True):
         </div>""", unsafe_allow_html=True)
 
     with col_main:
-        st.markdown('<div class="ctrl-lbl">代號 / 模式</div>', unsafe_allow_html=True)
-        r1, r2 = st.columns([1.6, 1.4])
-        with r1:
-            raw_input = st.text_input("代號", value=st.session_state._raw_input,
-                                      placeholder="2330 · AAPL · 0050",
-                                      label_visibility="collapsed").strip()
-            st.session_state._raw_input = raw_input
-        with r2:
-            mode = st.radio("模式", ["自動", "個股", "ETF"],
-                            index=["自動","個股","ETF"].index(st.session_state.mode),
-                            horizontal=True, label_visibility="collapsed")
-            st.session_state.mode = mode
+        st.markdown('<div class="ctrl-lbl">代號 / 輸入</div>', unsafe_allow_html=True)
+        raw_input = st.text_input("代號", value=st.session_state._raw_input,
+                                  placeholder="2330 · AAPL · 0050",
+                                  label_visibility="collapsed").strip()
+        st.session_state._raw_input = raw_input
+        mode = "自動"
 
     with col_etf:
         st.markdown('<div class="ctrl-lbl">ETF 快速選股</div>', unsafe_allow_html=True)
