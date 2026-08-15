@@ -73,46 +73,35 @@ section[data-testid="stSidebar"] .stButton button {
     background: #1C1C1E; color: #F7F5F0; border: none;
     border-radius: 4px; font-weight: 500; letter-spacing: 0.5px;
 }
-button[data-testid="collapsedControl"],
-button[kind="header"] { display: none !important; }
-[data-testid="stSidebarCollapseButton"] { display: none !important; }
-[data-testid="stSidebarCollapseButton"] span { display: none !important; }
-.stSidebarCollapseButton { display: none !important; }
 section[data-testid="stSidebar"] > div:first-child { padding-top: 16px !important; }
 .sb-label { font-size: 10px; letter-spacing: 2px; color: #8C8579; text-transform: uppercase; margin-bottom: 4px; }
 
-/* 自訂收合按鈕 */
-#sidebar-close-btn {
-    position: fixed;
-    top: 12px;
-    left: 12px;
-    z-index: 9999;
-    background: #F2EFE9;
-    border: 1px solid #DDD8CF;
-    border-radius: 4px;
-    width: 28px;
-    height: 28px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    font-size: 14px;
-    color: #5A5A5A;
-    transition: background 0.15s;
+/* 重新設計原生收合按鈕 */
+[data-testid="stSidebarCollapseButton"] button {
+    background: #EDEAE4 !important;
+    border: 1px solid #DDD8CF !important;
+    border-radius: 4px !important;
+    width: 28px !important;
+    height: 28px !important;
+    padding: 0 !important;
+    color: #5A5A5A !important;
 }
-#sidebar-close-btn:hover { background: #E8E4DC; color: #1C1C1E; }
+[data-testid="stSidebarCollapseButton"] button:hover {
+    background: #DDD8CF !important;
+    color: #1C1C1E !important;
+}
+[data-testid="stSidebarCollapseButton"] button svg {
+    width: 14px !important;
+    height: 14px !important;
+}
+/* 展開時的浮動按鈕也一起美化 */
+[data-testid="collapsedControl"] button {
+    background: #F2EFE9 !important;
+    border: 1px solid #DDD8CF !important;
+    border-radius: 4px !important;
+    color: #5A5A5A !important;
+}
 </style>
-
-<div id="sidebar-close-btn" onclick="
-    const sidebar = window.parent.document.querySelector('[data-testid=stSidebar]');
-    const btn = window.parent.document.querySelector('[data-testid=stSidebarCollapseButton] button') ||
-                window.parent.document.querySelector('button[kind=header]');
-    if (btn) { btn.click(); }
-    else {
-        const collapsed = sidebar.getAttribute('aria-expanded');
-        sidebar.setAttribute('aria-expanded', collapsed === 'true' ? 'false' : 'true');
-    }
-" title="收合選單">‹</div>
 """, unsafe_allow_html=True)
 
 st.sidebar.markdown('<p style="font-size:18px;font-weight:700;color:#1C1C1E;margin:0;letter-spacing:1px;">盈再分析</p>', unsafe_allow_html=True)
