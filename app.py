@@ -59,6 +59,12 @@ def _sig_cls(signal):
     return "sig-grey"
 
 
+def _render_kpi_card(lbl: str, val: str, sub: str = "", val_cls: str = "") -> str:
+    sub_html = f'<div class="kpi-sub">{sub}</div>' if sub else '<div class="kpi-sub">&nbsp;</div>'
+    cls_attr = f' class="kpi-val {val_cls}"' if val_cls else ' class="kpi-val"'
+    return f'<div class="kpi-wrap"><div class="kpi-lbl">{lbl}</div><div{cls_attr}>{val}</div>{sub_html}</div>'
+
+
 # ── session state ──
 for k, v in [("symbol","2330"), ("_raw_input","2330")]:
     if k not in st.session_state:
@@ -149,11 +155,21 @@ section[data-testid="stSidebar"] { display: none !important; }
 .sig-grey   { background:#EFEFEF; color:#5A5A5A; }
 
 /* ── KPI ── */
-.kpi-wrap { border-top:2px solid #1C1C1E; border-bottom:1px solid #DDD8CF; padding:16px 0; text-align:center; }
-.kpi-lbl  { font-size:10px; letter-spacing:2px; color:#8C8579; margin-bottom:6px; }
-.kpi-val  { font-family:'DM Mono',monospace; font-size:26px; font-weight:500; color:#1C1C1E; line-height:1; }
-.kpi-sub  { font-size:11px; color:#8C8579; margin-top:4px; }
-.c-green { color:#1A7A40; } .c-amber { color:#8A6A00; } .c-red { color:#B02020; }
+.kpi-wrap {
+    border-top: 2px solid #1C1C1E;
+    border-bottom: 1px solid #DDD8CF;
+    padding: 16px 0 12px;
+    text-align: center;
+    min-height: 98px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    box-sizing: border-box;
+}
+.kpi-lbl  { font-size: 10px; letter-spacing: 2px; color: #8C8579; margin-bottom: 6px; line-height: 1.2; }
+.kpi-val  { font-family: 'DM Mono', monospace; font-size: 26px; font-weight: 500; color: #1C1C1E; line-height: 1.1; margin: auto 0; }
+.kpi-sub  { font-size: 11px; color: #8C8579; margin-top: 4px; min-height: 16px; line-height: 16px; }
+.c-green { color: #1A7A40 !important; } .c-amber { color: #8A6A00 !important; } .c-red { color: #B02020 !important; }
 
 /* ── 估值尺 ── */
 .val-ruler { background:#EFECE6; border:1px solid #DDD8CF; border-radius:4px; padding:20px 24px 16px; }
@@ -305,14 +321,14 @@ if current_symbol:
             </div>""", unsafe_allow_html=True)
 
             c1,c2,c3,c4,c5 = st.columns(5)
-            c1.markdown(f'<div class="kpi-wrap"><div class="kpi-lbl">目前股價</div><div class="kpi-val">{price_sym}{etf_data.current_price:,.2f}</div></div>', unsafe_allow_html=True)
+            c1.markdown(_render_kpi_card("目前股價", f"{price_sym}{etf_data.current_price:,.2f}"), unsafe_allow_html=True)
             yc = "c-green" if result.current_yield >= result.avg_yield else "c-red"
-            c2.markdown(f'<div class="kpi-wrap"><div class="kpi-lbl">近12月殖利率</div><div class="kpi-val {yc}">{result.current_yield}%</div></div>', unsafe_allow_html=True)
-            c3.markdown(f'<div class="kpi-wrap"><div class="kpi-lbl">歷年平均殖利率</div><div class="kpi-val">{result.avg_yield}%</div></div>', unsafe_allow_html=True)
-            c4.markdown(f'<div class="kpi-wrap"><div class="kpi-lbl">連續配息</div><div class="kpi-val">{result.dividend_streak}</div><div class="kpi-sub">次</div></div>', unsafe_allow_html=True)
+            c2.markdown(_render_kpi_card("近12月殖利率", f"{result.current_yield}%", val_cls=yc), unsafe_allow_html=True)
+            c3.markdown(_render_kpi_card("歷年平均殖利率", f"{result.avg_yield}%"), unsafe_allow_html=True)
+            c4.markdown(_render_kpi_card("連續配息", f"{result.dividend_streak}", sub="次"), unsafe_allow_html=True)
             dd = f"{result.max_drawdown}%" if result.max_drawdown is not None else "—"
             dc = "c-red" if result.max_drawdown and result.max_drawdown < -20 else "c-amber"
-            c5.markdown(f'<div class="kpi-wrap"><div class="kpi-lbl">最大回撤</div><div class="kpi-val {dc}">{dd}</div></div>', unsafe_allow_html=True)
+            c5.markdown(_render_kpi_card("最大回撤", dd, val_cls=dc), unsafe_allow_html=True)
 
             if not result.yearly_metrics.empty:
                 st.markdown('<div class="sec-label">配息趨勢</div>', unsafe_allow_html=True)
@@ -352,15 +368,15 @@ if current_symbol:
             </div>""", unsafe_allow_html=True)
 
             c1,c2,c3,c4 = st.columns(4)
-            c1.markdown(f'<div class="kpi-wrap"><div class="kpi-lbl">目前股價</div><div class="kpi-val">{price_sym}{stock.current_price:,.2f}</div></div>', unsafe_allow_html=True)
+            c1.markdown(_render_kpi_card("目前股價", f"{price_sym}{stock.current_price:,.2f}"), unsafe_allow_html=True)
             rc = "c-green" if val.reinvest_rate < 80 else "c-red"
             rs = "達標" if val.reinvest_rate < 80 else "偏高"
-            c2.markdown(f'<div class="kpi-wrap"><div class="kpi-lbl">最新盈再率</div><div class="kpi-val {rc}">{val.reinvest_rate}%</div><div class="kpi-sub">{rs}</div></div>', unsafe_allow_html=True)
+            c2.markdown(_render_kpi_card("最新盈再率", f"{val.reinvest_rate}%", sub=rs, val_cls=rc), unsafe_allow_html=True)
             oc = "c-green" if val.avg_roe > 15 else ("c-amber" if val.avg_roe > 10 else "c-red")
             os_ = "達標" if val.avg_roe > 15 else "未達標"
-            c3.markdown(f'<div class="kpi-wrap"><div class="kpi-lbl">五年平均 ROE</div><div class="kpi-val {oc}">{val.avg_roe}%</div><div class="kpi-sub">{os_}</div></div>', unsafe_allow_html=True)
+            c3.markdown(_render_kpi_card("五年平均 ROE", f"{val.avg_roe}%", sub=os_, val_cls=oc), unsafe_allow_html=True)
             bv = f"{price_sym}{val.book_value_used:,.2f}" if val.book_value_used else "—"
-            c4.markdown(f'<div class="kpi-wrap"><div class="kpi-lbl">每股淨值</div><div class="kpi-val">{bv}</div></div>', unsafe_allow_html=True)
+            c4.markdown(_render_kpi_card("每股淨值", bv), unsafe_allow_html=True)
 
             st.markdown('<div class="sec-label">估值價格區間</div>', unsafe_allow_html=True)
             price = stock.current_price
