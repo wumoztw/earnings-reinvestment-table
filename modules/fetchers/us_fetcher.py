@@ -187,9 +187,6 @@ class UniversalFetcher(BaseFetcher):
 
         required = ["net_income", "equity"]
         missing_ratio = df[required].isna().mean().mean()
-        if "fixed_assets" in df.columns:
-            fa_miss = df["fixed_assets"].isna().mean()
-            missing_ratio = (missing_ratio + fa_miss) / 2
         if missing_ratio > 0.5:
             data_quality = "insufficient"
         elif missing_ratio > 0.1:
@@ -301,7 +298,7 @@ class UniversalFetcher(BaseFetcher):
 
         df = pd.DataFrame(rows).set_index("year").sort_index()
 
-        required = ["net_income", "equity", "fixed_assets"]
+        required = ["net_income", "equity"]
         missing_ratio = df[required].isna().mean().mean()
         if missing_ratio > 0.5:
             data_quality = "insufficient"
@@ -461,7 +458,7 @@ class UniversalFetcher(BaseFetcher):
         df["long_term_invest"] = df["long_term_invest"].fillna(0.0)
         df = df.sort_index(ascending=True)
 
-        required_cols = ["net_income", "equity", "fixed_assets"]
+        required_cols = ["net_income", "equity"]
         missing_ratio = df[required_cols].isna().mean().mean()
         if missing_ratio > 0.5:
             data_quality = "insufficient"
