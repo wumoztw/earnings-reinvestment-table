@@ -26,8 +26,10 @@ def _yield_to_price(target_yield: float, etf_data) -> float:
         return 0.0
     
     div_df_copy = div_df.copy()
-    div_df_copy["date"] = pd.to_datetime(div_df_copy["date"]).dt.tz_localize(None)
-    cutoff = pd.Timestamp.now() - pd.DateOffset(months=12)
+    div_df_copy["date"] = pd.to_datetime(div_df_copy["date"])
+    if div_df_copy["date"].dt.tz is not None:
+        div_df_copy["date"] = div_df_copy["date"].dt.tz_localize(None)
+    cutoff = pd.Timestamp.now().tz_localize(None) - pd.DateOffset(months=12)
     recent = div_df_copy[div_df_copy["date"] >= cutoff]
     
     if recent.empty:
@@ -41,7 +43,7 @@ def _yield_to_price(target_yield: float, etf_data) -> float:
 # 快取分析 Pipeline
 # ──────────────────────────────────────────
 
-@st.cache_data(ttl=3600)
+@st.cache_data(ttl=3600, show_spinner=False)
 def run_stock_pipeline(symbol: str):
     """個股盈再表分析 Pipeline"""
     fetcher = UniversalFetcher()
@@ -55,7 +57,7 @@ def run_stock_pipeline(symbol: str):
     return stock_data, metrics_df, val_result
 
 
-@st.cache_data(ttl=3600)
+@st.cache_data(ttl=3600, show_spinner=False)
 def run_etf_pipeline(symbol: str):
     """ETF 分析 Pipeline"""
     fetcher = TwEtfFetcher()
@@ -68,8 +70,13 @@ def run_etf_pipeline(symbol: str):
 
 
 # ──────────────────────────────────────────
-# 側邊欄
+# 側邊欄（使用 session_state 管理狀態）
 # ──────────────────────────────────────────
+
+if "symbol" not in st.session_state:
+    st.session_state.symbol = "0050"
+if "mode" not in st.session_state:
+    st.session_state.mode = "自動偵測"
 
 st.sidebar.title("🔍 股票 / ETF 分析設定")
 
@@ -77,14 +84,17 @@ st.sidebar.title("🔍 股票 / ETF 分析設定")
 mode = st.sidebar.radio(
     "分析模式",
     ["自動偵測", "個股盈再表", "台灣 ETF"],
-    index=0,
+    index=["自動偵測", "個股盈再表", "台灣 ETF"].index(st.session_state.mode),
     help="自動偵測會根據代號判斷是個股或 ETF",
+    key="mode_radio",
 )
+st.session_state.mode = mode
 
 # 輸入代號
 symbol_input = st.sidebar.text_input(
     "輸入代號 (台股: 2330 / 美股: AAPL / ETF: 0050)",
-    value="0050",
+    value=st.session_state.symbol,
+    key="symbol_input_box",
 ).strip().upper()
 
 # ETF 快速選股
@@ -110,11 +120,15 @@ if mode in ["自動偵測", "台灣 ETF"]:
     )
     
     if st.sidebar.button("📌 套用此 ETF", type="secondary"):
-        symbol_input = etf_options[selected_etf_idx]["symbol"]
+        st.session_state.symbol = etf_options[selected_etf_idx]["symbol"]
         st.rerun()
 
 st.sidebar.divider()
 search_btn = st.sidebar.button("🚀 開始分析", type="primary", use_container_width=True)
+
+# 當按下分析或代號改變時更新 session
+if search_btn or (symbol_input and symbol_input != st.session_state.symbol):
+    st.session_state.symbol = symbol_input
 
 
 # ──────────────────────────────────────────
@@ -138,21 +152,23 @@ def determine_mode(symbol: str, user_mode: str) -> str:
 st.title("📊 盈餘再投資率 & ETF 評估儀表板")
 st.caption("基於巴菲特/洪瑞泰價值投資邏輯的自動化開源分析工具，支援台灣 ETF 殖利率分析")
 
-if symbol_input:
-    analysis_mode = determine_mode(symbol_input, mode)
+current_symbol = st.session_state.symbol
+
+if current_symbol:
+    analysis_mode = determine_mode(current_symbol, mode)
     
     if analysis_mode == "etf":
         # ════════════════════════════════════════
         # ETF 分析模式
         # ════════════════════════════════════════
         try:
-            with st.spinner(f"正在擷取 ETF {symbol_input} 的歷史資料並分析中..."):
-                etf_data, result = run_etf_pipeline(symbol_input)
+            with st.spinner(f"正在擷取 ETF {current_symbol} 的歷史資料並分析中..."):
+                etf_data, result = run_etf_pipeline(current_symbol)
             
             # 標題
-            etf_info = get_etf_info(symbol_input)
-            display_name = etf_data.name or etf_info.get("name", symbol_input)
-            st.subheader(f"🏷️ {symbol_input} {display_name}")
+            etf_info = get_etf_info(current_symbol)
+            display_name = etf_data.name or etf_info.get("name", current_symbol)
+            st.subheader(f"🏷️ {current_symbol} {display_name}")
             if etf_info:
                 st.caption(f"類別: {etf_info.get('category', '—')} ｜ 配息頻率: {etf_info.get('freq', '—')}")
             
@@ -178,7 +194,7 @@ if symbol_input:
             
             # 2. 報酬率摘要
             st.divider()
-            st.subheader("💰 含息報酬率")
+            st.subheader("💰 含息報酬率（價格變動 + 現金配息）")
             rcol1, rcol2, rcol3 = st.columns(3)
             rcol1.metric("1 年報酬", f"{result.total_return_1y}%" if result.total_return_1y is not None else "—")
             rcol2.metric("3 年年化", f"{result.total_return_3y}%" if result.total_return_3y is not None else "—")
@@ -188,9 +204,12 @@ if symbol_input:
             st.divider()
             st.subheader("🎯 殖利率估值區間")
             ycol1, ycol2, ycol3 = st.columns(3)
-            ycol1.success(f"🟢 便宜殖利率：**{result.cheap_yield}%**\n\n(對應價格約 NT${_yield_to_price(result.cheap_yield, etf_data):,.1f})" if result.cheap_yield > 0 else "🟢 便宜殖利率：—")
-            ycol2.warning(f"🟡 合理殖利率：**{result.fair_yield}%**\n\n(對應價格約 NT${_yield_to_price(result.fair_yield, etf_data):,.1f})" if result.fair_yield > 0 else "🟡 合理殖利率：—")
-            ycol3.error(f"🔴 昂貴殖利率：**{result.expensive_yield}%**\n\n(對應價格約 NT${_yield_to_price(result.expensive_yield, etf_data):,.1f})" if result.expensive_yield > 0 else "🔴 昂貴殖利率：—")
+            cheap_price = _yield_to_price(result.cheap_yield, etf_data)
+            fair_price = _yield_to_price(result.fair_yield, etf_data)
+            exp_price = _yield_to_price(result.expensive_yield, etf_data)
+            ycol1.success(f"🟢 便宜殖利率：**{result.cheap_yield}%**\n\n(對應價格約 NT${cheap_price:,.1f})" if result.cheap_yield > 0 else "🟢 便宜殖利率：—")
+            ycol2.warning(f"🟡 合理殖利率：**{result.fair_yield}%**\n\n(對應價格約 NT${fair_price:,.1f})" if result.fair_yield > 0 else "🟡 合理殖利率：—")
+            ycol3.error(f"🔴 昂貴殖利率：**{result.expensive_yield}%**\n\n(對應價格約 NT${exp_price:,.1f})" if result.expensive_yield > 0 else "🔴 昂貴殖利率：—")
             
             # 4. 殖利率與報酬率趨勢圖
             yearly = result.yearly_metrics
@@ -208,12 +227,10 @@ if symbol_input:
                         line=dict(color="#00CC96", width=3),
                         marker=dict(size=8),
                     ))
-                    # 歷史均值線
                     fig_yield.add_hline(
                         y=result.avg_yield, line_dash="dash", line_color="blue",
                         annotation_text=f"均值 {result.avg_yield}%",
                     )
-                    # 便宜 / 昂貴區間
                     fig_yield.add_hline(
                         y=result.cheap_yield, line_dash="dot", line_color="green",
                         annotation_text=f"便宜 {result.cheap_yield}%",
@@ -297,26 +314,47 @@ if symbol_input:
                     st.dataframe(div_display, use_container_width=True, hide_index=True)
         
         except Exception as e:
-            st.error(f"無法取得 ETF `{symbol_input}` 的資料，請確認代號是否正確或稍後再試。\n\n錯誤訊息: {e}")
+            st.error(f"無法取得 ETF `{current_symbol}` 的資料。\n\n**錯誤訊息：** {e}")
+            st.info("請確認代號是否正確（例如 0050、00878、00679B），或稍後再試。yfinance 有時會暫時無法取得資料。")
     
     else:
         # ════════════════════════════════════════
-        # 個股盈再表分析模式 (原始邏輯)
+        # 個股盈再表分析模式
         # ════════════════════════════════════════
         try:
             with st.spinner("正在擷取歷年財報並運算中..."):
-                stock, metrics, val = run_stock_pipeline(symbol_input)
+                stock, metrics, val = run_stock_pipeline(current_symbol)
+            
+            # 資料品質提示
+            if stock.data_quality == "partial":
+                st.warning("⚠️ 部分財報科目缺失，分析結果僅供參考。")
+            elif stock.data_quality == "insufficient":
+                st.error("❌ 財報資料嚴重不足，結果可能不可靠。")
             
             # 1. 頂部 KPI 卡片
             col1, col2, col3, col4 = st.columns(4)
             col1.metric("目前股價", f"${stock.current_price:,.2f}")
-            col2.metric("最新盈再率", f"{val.reinvest_rate}%", delta="標準 < 40%" if val.reinvest_rate < 40 else "偏高", delta_color="normal" if val.reinvest_rate < 40 else "inverse")
-            col3.metric("近五年平均 ROE", f"{val.avg_roe}%", delta="標準 > 15%" if val.avg_roe > 15 else "偏低")
+            col2.metric(
+                "最新盈再率",
+                f"{val.reinvest_rate}%",
+                delta="標準 < 40%" if val.reinvest_rate < 40 else "偏高",
+                delta_color="normal" if val.reinvest_rate < 40 else "inverse",
+            )
+            col3.metric(
+                "近五年平均 ROE",
+                f"{val.avg_roe}%",
+                delta="標準 > 15%" if val.avg_roe > 15 else "偏低",
+            )
             col4.subheader(val.signal)
 
             # 2. 估值區間卡片
             st.divider()
             st.subheader("🎯 估值價格區間")
+            if val.book_value_used is not None:
+                st.caption(f"計算基礎：每股淨值 ${val.book_value_used:,.2f} × (平均 ROE {val.avg_roe}% / 15%) → 方法：{val.base_value_method}")
+            else:
+                st.caption(f"計算基礎：目前股價相對調整（無可用淨值資料）→ 方法：{val.base_value_method}")
+            
             vcol1, vcol2, vcol3 = st.columns(3)
             vcol1.info(f"🟢 便宜價：**${val.cheap}**")
             vcol2.warning(f"🟡 合理價：**${val.fair}**")
@@ -327,8 +365,15 @@ if symbol_input:
             st.subheader("📈 歷年財務趨勢圖")
             
             fig = go.Figure()
-            fig.add_trace(go.Scatter(x=metrics.index, y=metrics['roe'], mode='lines+markers', name='ROE (%)', line=dict(color='#00CC96', width=3)))
-            fig.add_trace(go.Bar(x=metrics.index, y=metrics['reinvest_rate'], name='盈餘再投資率 (%)', marker_color='#636EFA', opacity=0.6))
+            fig.add_trace(go.Scatter(
+                x=metrics.index, y=metrics["roe"],
+                mode="lines+markers", name="ROE (%)",
+                line=dict(color="#00CC96", width=3),
+            ))
+            fig.add_trace(go.Bar(
+                x=metrics.index, y=metrics["reinvest_rate"],
+                name="盈餘再投資率 (%)", marker_color="#636EFA", opacity=0.6,
+            ))
             
             # 標記安全門檻線
             fig.add_hline(y=15, line_dash="dash", line_color="green", annotation_text="ROE 15% 門檻")
@@ -339,8 +384,12 @@ if symbol_input:
 
             # 4. 原始數據表格
             with st.expander("查看歷年標準化財報數據表"):
-                st.dataframe(metrics.style.format("{:.2f}"), use_container_width=True)
+                display_cols = [c for c in ["net_income", "equity", "fixed_assets", "long_term_invest", "roe", "reinvest_rate"] if c in metrics.columns]
+                st.dataframe(metrics[display_cols].style.format("{:.2f}"), use_container_width=True)
 
         except Exception as e:
-            st.error(f"無法取得股票 `{symbol_input}` 的資料，請確認代號是否正確或稍後再試。錯誤訊息: {e}")
+            st.error(f"無法取得股票 `{current_symbol}` 的資料。\n\n**錯誤訊息：** {e}")
+            st.info("請確認代號是否正確（台股例如 2330、2454；美股例如 AAPL、MSFT），或該標的財報是否已公開。")
 
+else:
+    st.info("請在左側輸入股票或 ETF 代號後點擊「開始分析」。")
