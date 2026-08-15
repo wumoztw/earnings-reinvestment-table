@@ -57,6 +57,8 @@ if "symbol" not in st.session_state:
     st.session_state.symbol = "2330"
 if "mode" not in st.session_state:
     st.session_state.mode = "自動偵測"
+if "clear_search" not in st.session_state:
+    st.session_state.clear_search = False
 
 st.sidebar.title("🔍 股票 / ETF 分析設定")
 src_bits = []
@@ -81,11 +83,23 @@ st.session_state.mode = mode
 
 st.sidebar.divider()
 st.sidebar.subheader("🔎 不知道代號？搜尋公司名稱")
+
+# clear_search 旗標：套用代號後下一次渲染清空搜尋框
+if "clear_search" not in st.session_state:
+    st.session_state.clear_search = False
+if st.session_state.clear_search:
+    st.session_state.clear_search = False
+    st.session_state._search_value = ""
+_search_val = st.session_state.get("_search_value", "")
+
 search_query = st.sidebar.text_input(
     "輸入公司名稱或關鍵字（中文/英文皆可）",
-    key="search_query_input",
+    value=_search_val,
     placeholder="例：台積電 / Apple / 聯發科",
 )
+# 同步回 session_state 讓下次渲染用
+st.session_state._search_value = search_query
+
 if search_query:
     with st.sidebar:
         with st.spinner("搜尋中..."):
@@ -98,11 +112,10 @@ if search_query:
         selected_label = st.sidebar.selectbox(
             "搜尋結果（選擇後按套用）",
             list(options.keys()),
-            key="search_result_select",
         )
         if st.sidebar.button("📌 套用此代號", key="apply_search_symbol", type="secondary"):
             st.session_state.symbol = options[selected_label]
-            st.session_state["search_query_input"] = ""  # 清空搜尋框
+            st.session_state.clear_search = True
             st.rerun()
     else:
         st.sidebar.caption("❌ 找不到符合的股票，請換個關鍵字試試。")
