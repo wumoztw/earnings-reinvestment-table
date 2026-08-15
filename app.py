@@ -98,23 +98,49 @@ import re as _re
 _is_direct = bool(_re.fullmatch(r"[A-Za-z0-9\.\-]{1,10}", raw_input))
 
 if raw_input and not _is_direct:
-    # 有非代號字元（中文/空白）→ 顯示外部搜尋連結
     import urllib.parse as _up
-    _q = _up.quote(raw_input)
-    st.sidebar.markdown(
-        f"""**🔍 查詢「{raw_input}」的股票代號：**
+    import re as _re2
+
+    _has_zh = bool(_re2.search(r"[\u4e00-\u9fff]", raw_input))
+
+    if _has_zh:
+        # 中文輸入：台股用原字，美股加「美股 stock ticker」提升精準度
+        _q_tw   = _up.quote(raw_input)
+        _q_us   = _up.quote(f"{raw_input} 美股 stock ticker")
+        _q_google = _up.quote(f"{raw_input} stock ticker symbol")
+        st.sidebar.markdown(
+            f"""**🔍 查詢「{raw_input}」的股票代號：**
 
 🇹🇼 台股
-- [Goodinfo 台灣股市資訊網](https://goodinfo.tw/tw/StockList.asp?SEARCH_KEY={_q})
-- [Yahoo 股市（台股）](https://tw.stock.yahoo.com/q/s?q={_q})
+- [Goodinfo 台灣股市資訊網](https://goodinfo.tw/tw/StockList.asp?SEARCH_KEY={_q_tw})
+- [Yahoo 股市（台股）](https://tw.stock.yahoo.com/q/s?q={_q_tw})
 
 🇺🇸 美股 / 全球
+- [Google 搜尋](https://www.google.com/search?q={_q_google})
+- [Yahoo Finance](https://finance.yahoo.com/search/?q={_up.quote(raw_input)})
+- [Finviz](https://finviz.com/search.ashx?q={_up.quote(raw_input)})
+
+查到代號後，貼入上方輸入框即可。""",
+            unsafe_allow_html=False,
+        )
+    else:
+        # 英文輸入：直接用原字，加 stock ticker 輔助
+        _q      = _up.quote(raw_input)
+        _q_full = _up.quote(f"{raw_input} stock ticker")
+        st.sidebar.markdown(
+            f"""**🔍 查詢「{raw_input}」的股票代號：**
+
+🇺🇸 美股 / 全球
+- [Google 搜尋](https://www.google.com/search?q={_q_full})
 - [Yahoo Finance](https://finance.yahoo.com/search/?q={_q})
 - [Finviz](https://finviz.com/search.ashx?q={_q})
 
+🇹🇼 台股
+- [Goodinfo 台灣股市資訊網](https://goodinfo.tw/tw/StockList.asp?SEARCH_KEY={_q})
+
 查到代號後，貼入上方輸入框即可。""",
-        unsafe_allow_html=False,
-    )
+            unsafe_allow_html=False,
+        )
     symbol_input = st.session_state.symbol  # 維持上一次成功的代號
 elif raw_input and _is_direct:
     symbol_input = raw_input.upper()
