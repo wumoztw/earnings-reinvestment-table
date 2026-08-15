@@ -6,7 +6,7 @@
 [![Plotly](https://img.shields.io/badge/Plotly-Interactive%20Charts-3F4F75.svg)](https://plotly.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-基於**巴菲特（Warren Buffett）**與**洪瑞泰（Michael Hong）**價值投資哲學的自動化開源分析工具。系統提供**個股盈再表分析**以及**台灣股市 ETF 殖利率與含息報酬率評估**雙核心引擎，搭配 Streamlit 打造即時互動式儀表板。
+基於**巴菲特（Warren Buffett）**與[洪瑞泰（Michael Hong）巴菲特班](https://stocks.ddns.net/Intro.aspx)價值投資哲學的自動化開源分析工具。系統提供**個股盈再表分析**以及**台灣股市 ETF 殖利率與含息報酬率評估**雙核心引擎，搭配 Streamlit 打造即時互動式儀表板。
 
 ---
 
@@ -170,6 +170,13 @@ print(f'{stock.name}: ROE={val.avg_roe}%, 盈再率={val.reinvest_rate}%, 訊號
 
 ---
 
+## 🔗 相關資源與致敬 (References)
+
+- 🏛️ **[洪瑞泰（Michael Hong）巴菲特班](https://stocks.ddns.net/Intro.aspx)**：巴菲特價值投資法在台灣的先驅推廣者，本系統之盈餘再投資率（盈再率）、ROE 評價標準及內在價值評估核心架構皆啟發自洪瑞泰老師之著作與理論。
+
+---
+
 ## 📄 授權條款
 
 本專案採用 [MIT License](LICENSE) 授權開放。歡迎自由 Fork、提交 PR 或 Issue 共同完善！
+
