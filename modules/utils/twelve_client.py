@@ -9,6 +9,10 @@ except ImportError:
     st = None
 
 
+class TwelveDataError(Exception):
+    pass
+
+
 def _get_twelve_key() -> Optional[str]:
     """
     依序嘗試由環境變數 (os.getenv) 與 Streamlit secrets (st.secrets)

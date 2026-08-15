@@ -9,6 +9,10 @@ except ImportError:
     st = None
 
 
+class FinMindError(Exception):
+    pass
+
+
 def _get_finmind_token() -> Optional[str]:
     """
     依序嘗試由環境變數 (os.getenv) 與 Streamlit secrets (st.secrets)
