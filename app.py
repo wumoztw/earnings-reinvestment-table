@@ -467,10 +467,9 @@ if current_symbol:
             st.markdown('<div class="sec-label">歷年財務趨勢（近五年）</div>', unsafe_allow_html=True)
             chart_c1, chart_c2 = st.columns(2)
 
-            # 取近 5 個年度資料
-            recent_metrics = metrics[metrics.index <= 2025].tail(5) if (metrics.index > 2025).any() else metrics.tail(5)
-            valid_roe = recent_metrics["roe"].dropna()
-            valid_reinv = recent_metrics["reinvest_rate"].dropna()
+            # 取近 5 筆有效數據
+            valid_roe = metrics["roe"].dropna().tail(5)
+            valid_reinv = metrics["reinvest_rate"].dropna().tail(5)
 
             with chart_c1:
                 # ── ROE 走勢圖 ──

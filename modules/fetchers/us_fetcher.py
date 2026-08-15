@@ -87,7 +87,7 @@ class UniversalFetcher(BaseFetcher):
             return clean, "TWSE", "Taiwan", "TW"
         return clean, "NASDAQ", "United States", "US"
 
-    @cached("stock_fetch_v3", ttl=6 * 3600)
+    @cached("stock_fetch_v4", ttl=6 * 3600)
     def fetch(self, symbol: str) -> StockData:
         clean, exchange, country, market = self._resolve_symbol(symbol)
         errors = []
