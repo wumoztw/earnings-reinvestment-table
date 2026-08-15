@@ -28,53 +28,66 @@ def _is_tw_query(query: str) -> bool:
 
 _TWSE_CACHE: List[Dict] = []
 
-def _get_twse_list() -> List[Dict]:
-    """取得 TWSE + TPEx 全部上市上櫃股票清單，快取於模組層級。"""
+def _get_tw_stock_list() -> List[Dict]:
+    """
+    取得台股完整清單（上市+上櫃），快取於模組層級。
+    主力：FinMind TaiwanStockInfo（含上市+上櫃+公司名稱）
+    Fallback：TWSE 行情 API（只有上市，無公司名稱時以代號代替）
+    """
     global _TWSE_CACHE
     if _TWSE_CACHE:
         return _TWSE_CACHE
 
     results = []
-    # 上市
+
+    # 主力：FinMind（上市+上櫃，含公司名稱）
     try:
-        r = requests.get(
-            "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL",
-            timeout=8,
-        )
-        r.raise_for_status()
-        for item in r.json():
-            code = item.get("Code", "")
-            name = item.get("Name", "")
-            if code and name:
-                results.append({"symbol": code, "name": name, "exchange": "TWSE"})
+        from modules.utils.finmind_client import FinMindClient, has_finmind_token
+        if has_finmind_token():
+            client = FinMindClient()
+            resp = requests.get(
+                "https://api.finmindtrade.com/api/v4/data",
+                params={"dataset": "TaiwanStockInfo", "token": client.token},
+                timeout=12,
+            )
+            resp.raise_for_status()
+            data = resp.json().get("data", [])
+            for item in data:
+                code = str(item.get("stock_id", "")).strip()
+                name = str(item.get("stock_name", "")).strip()
+                market = str(item.get("type", "")).strip()
+                if code and name:
+                    exchange = "TPEx" if market in ("otc", "OTC", "上櫃") else "TWSE"
+                    results.append({"symbol": code, "name": name, "exchange": exchange})
     except Exception:
         pass
 
-    # 上櫃
-    try:
-        r = requests.get(
-            "https://www.tpex.org.tw/openapi/v1/tpex_mainboard_daily_close_quotes",
-            timeout=8,
-        )
-        r.raise_for_status()
-        for item in r.json():
-            code = item.get("SecuritiesCompanyCode", "")
-            name = item.get("CompanyName", "")
-            if code and name:
-                results.append({"symbol": code, "name": name, "exchange": "TPEx"})
-    except Exception:
-        pass
+    # Fallback：TWSE 行情 API（只有上市，名稱欄位為 Name）
+    if not results:
+        try:
+            r = requests.get(
+                "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL",
+                timeout=8,
+            )
+            r.raise_for_status()
+            for item in r.json():
+                code = item.get("Code", "").strip()
+                name = item.get("Name", "").strip()
+                if code and name:
+                    results.append({"symbol": code, "name": name, "exchange": "TWSE"})
+        except Exception:
+            pass
 
     _TWSE_CACHE = results
     return results
 
 
 def _search_twse(query: str, max_results: int = 8) -> List[Dict]:
-    """在 TWSE/TPEx 清單中模糊比對代號或名稱。"""
+    """在台股清單（上市+上櫃）中模糊比對代號或名稱。"""
     q = query.strip().lower()
     matched = []
     try:
-        for item in _get_twse_list():
+        for item in _get_tw_stock_list():
             code = item["symbol"].lower()
             name = item["name"].lower()
             if q in code or q in name:
@@ -83,7 +96,7 @@ def _search_twse(query: str, max_results: int = 8) -> List[Dict]:
                     "name": item["name"],
                     "exchange": item["exchange"],
                     "type": "股票",
-                    "source": "TWSE/TPEx",
+                    "source": "FinMind" if item["exchange"] in ("TWSE", "TPEx") else "TWSE",
                 })
             if len(matched) >= max_results:
                 break
@@ -92,39 +105,10 @@ def _search_twse(query: str, max_results: int = 8) -> List[Dict]:
     return matched
 
 
-# ---------- FinMind 台股清單搜尋（fallback） ----------
+# ---------- FinMind 台股清單搜尋（已整合至 _search_twse，保留供直接呼叫） ----------
 
 def _search_finmind_tw(query: str, max_results: int = 8) -> List[Dict]:
-    try:
-        from modules.utils.finmind_client import FinMindClient, has_finmind_token
-        if not has_finmind_token():
-            return []
-        client = FinMindClient()
-        resp = requests.get(
-            "https://api.finmindtrade.com/api/v4/data",
-            params={"dataset": "TaiwanStockInfo", "token": client.token},
-            timeout=10,
-        )
-        resp.raise_for_status()
-        data = resp.json().get("data", [])
-        q = query.strip().lower()
-        matched = []
-        for item in data:
-            code = str(item.get("stock_id", "")).lower()
-            name = str(item.get("stock_name", "")).lower()
-            if q in code or q in name:
-                matched.append({
-                    "symbol": item.get("stock_id", ""),
-                    "name": item.get("stock_name", ""),
-                    "exchange": "TWSE/TPEx",
-                    "type": "股票",
-                    "source": "FinMind",
-                })
-            if len(matched) >= max_results:
-                break
-        return matched
-    except Exception:
-        return []
+    return _search_twse(query, max_results)
 
 
 # ---------- 中文公司名稱對照表 ----------
