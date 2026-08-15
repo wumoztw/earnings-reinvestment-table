@@ -16,9 +16,11 @@
 - **盈餘再投資率（Reinvestment Rate）**：
   $$\text{盈再率} = \frac{(\text{當期固定資產} + \text{長期投資}) - (4年前固定資產 + 4年前長期投資)}{\text{近4年淨利總和}} \times 100\%$$
   - 安全標準：$< 40\%$ 為優質不燒錢企業；$> 80\%$ 須高度警戒。
+  - 已加入分母接近零的保護與資料完整度標記。
 - **股東權益報酬率（ROE）**：檢視歷年 ROE 趨勢與近 5 年平均表現（門檻：$> 15\%$）。
-- **內在價值估值模型**：依據 ROE 與目前每股淨值，自動計算**便宜價（0.8x）**、**合理價（1.0x）**與**昂貴價（1.3x）**。
+- **內在價值估值模型**：優先使用**每股淨值 × (平均 ROE / 15%)** 計算合理價，再推導便宜價（0.8x）與昂貴價（1.3x）。若無淨值資料則 fallback 至舊邏輯並明確標示。
 - **視覺化趨勢**：Plotly 雙軸互動圖表，標示 15% ROE 與 40% 盈再率安全警戒線。
+- **資料品質提示**：自動判斷財報完整度（ok / partial / insufficient）並在 UI 警示。
 
 ### 2. 📊 台灣股市 ETF 專屬分析引擎
 針對 ETF 無傳統財務報表之特質，打造專屬評估模型：
@@ -32,6 +34,7 @@
   - 🟡 **合理區間**：殖利率座落於歷史均值附近
   - 🔴 **昂貴區間**：殖利率低於歷史均值 $-1\sigma$
 - **含息總報酬率回測**：1 年、3 年（年化）、5 年（年化）含息總報酬率與歷史最大回撤（Max Drawdown）。
+  - **修正**：使用原始價格 + 明確現金配息計算，避免 auto_adjust 重複計算問題。
 - **完整配息與報酬圖表**：殖利率歷史趨勢圖、年度含息總報酬長條圖、每股現金配息歷程表。
 
 ---
@@ -48,15 +51,14 @@ earnings-reinvestment-table/
 ├── modules/
 │   ├── fetchers/
 │   │   ├── etf_registry.py     # 台灣 ETF 清單、分類登錄與代號規則識別
-│   │   ├── tw_etf_fetcher.py   # 台灣 ETF 價量與配息抓取器 (yfinance)
-│   │   ├── tw_fetcher.py       # 台股個股資料抓取器
-│   │   └── us_fetcher.py       # 通用個股資料抓取器 (自動處理 .TW 綴詞)
+│   │   ├── tw_etf_fetcher.py   # 台灣 ETF 價量與配息抓取器 (yfinance, auto_adjust=False)
+│   │   └── us_fetcher.py       # 通用個股資料抓取器 (強化多標籤容錯、年份對齊、淨值提取)
 │   ├── calculators/
-│   │   ├── metrics.py          # 個股 ROE、盈餘再投資率運算模組
+│   │   ├── metrics.py          # 個股 ROE、盈餘再投資率運算模組（含邊界保護）
 │   │   └── etf_metrics.py      # ETF 殖利率、含息報酬率、最大回撤運算模組
 │   └── valuators/
-│       └── valuation.py        # 個股便宜/合理/昂貴價價值評估引擎
-├── app.py                      # Streamlit 互動式儀表板主入口
+│       └── valuation.py        # 個股便宜/合理/昂貴價價值評估引擎（優先使用淨值）
+├── app.py                      # Streamlit 互動式儀表板主入口（session_state 狀態管理）
 ├── requirements.txt            # 相依套件清單
 └── README.md                   # 專案說明文件
 ```
@@ -77,7 +79,7 @@ graph TD
     AutoDetect -->|個股 標的| UniversalFetcher[UniversalFetcher\nyfinance]
     UniversalFetcher --> StockData[(StockData Schema)]
     StockData --> FinancialMetricsCalculator[FinancialMetricsCalculator\nROE / 盈餘再投資率]
-    FinancialMetricsCalculator --> ValueInvestingValuator[ValueInvestingValuator\n內在價值折現模型]
+    FinancialMetricsCalculator --> ValueInvestingValuator[ValueInvestingValuator\n淨值 × ROE 倍數估值]
     ValueInvestingValuator --> StockUI[Streamlit 個股儀表板\n- 盈再率 & ROE 雙軸圖\n- 便宜/合理/昂貴價區間\n- 標準化歷年財報]
 ```
 
@@ -98,7 +100,7 @@ cd earnings-reinvestment-table
 # 建立並啟動虛擬環境 (建議)
 python3 -m venv .venv
 source .venv/bin/activate  # Linux / macOS
-# .venv\Scripts\activate   # Windows
+# .venv\\Scripts\\activate   # Windows
 
 # 安裝相依套件
 pip install -r requirements.txt
@@ -119,7 +121,7 @@ streamlit run app.py
 ### 個股盈再表分析
 1. 在左側側邊欄輸入台股代號（如 `2330`、`2454`）或美股代號（如 `AAPL`、`MSFT`、`NVDA`）。
 2. 點擊 **開始分析**。
-3. 檢視最新盈再率、近 5 年平均 ROE 以及便宜/合理/昂貴價估值。
+3. 檢視最新盈再率、近 5 年平均 ROE 以及便宜/合理/昂貴價估值（會顯示計算基礎）。
 
 ### 台灣 ETF 分析
 1. 輸入 ETF 代號（如 `0050`、`0056`、`00878`、`006208`、`00679B`）或從側邊欄 **ETF 快速選股** 下拉選單選擇。
@@ -156,6 +158,7 @@ stock = UniversalFetcher().fetch('2330')
 metrics = FinancialMetricsCalculator().calculate_metrics(stock)
 val = ValueInvestingValuator().evaluate(stock, metrics)
 print(f'{stock.name}: ROE={val.avg_roe}%, 盈再率={val.reinvest_rate}%, 訊號={val.signal}')
+print(f'估值方法: {val.base_value_method}, 使用淨值: {val.book_value_used}')
 "
 ```
 
@@ -180,3 +183,13 @@ print(f'{stock.name}: ROE={val.avg_roe}%, 盈再率={val.reinvest_rate}%, 訊號
 
 本專案採用 [MIT License](LICENSE) 授權開放。歡迎自由 Fork、提交 PR 或 Issue 共同完善！
 
+---
+
+## 📝 近期重要更新 (2026-08)
+
+1. **資料抓取穩健性大幅提升**：UniversalFetcher 支援多組 yfinance 標籤容錯、共同年份對齊、資料品質標記、自動提取每股淨值。
+2. **總報酬計算修正**：改用 `auto_adjust=False` + 明確加入現金配息，避免重複計算問題。
+3. **估值模型與文件一致**：真正優先使用「每股淨值 × (ROE/15)」邏輯。
+4. **盈再率邊界保護**：分母接近零時設為 NaN，避免極端數字。
+5. **UX 改善**：session_state 狀態管理、更清晰的錯誤提示與計算基礎顯示。
+6. **清理**：移除未使用的重複檔案 `tw_fetcher.py`。
