@@ -225,15 +225,7 @@ src_bits.append("yfinance")
 src_label = " → ".join(src_bits)
 
 with st.container(border=True):
-    col_brand, col_main, col_etf, col_actions = st.columns([1.5, 3.2, 3.2, 1.5])
-
-    with col_brand:
-        st.markdown(f"""
-        <div class="ctrl-brand">
-          <div class="ctrl-brand-name">盈再分析</div>
-          <div class="ctrl-brand-sub">EARNINGS REINVESTMENT ANALYZER</div>
-          <div class="ctrl-src">{src_label}</div>
-        </div>""", unsafe_allow_html=True)
+    col_main, col_etf, col_actions = st.columns([3.2, 4.2, 1.8])
 
     with col_main:
         st.markdown('<div class="ctrl-lbl">輸入：台股／美股股票代號</div>', unsafe_allow_html=True)
