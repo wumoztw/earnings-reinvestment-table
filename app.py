@@ -12,7 +12,7 @@ from modules.utils.twelve_client import has_twelve_data_key
 from modules.utils.finmind_client import has_finmind_token
 from modules.utils.symbol_search import search_symbols, get_tw_stock_list_debug
 
-st.set_page_config(page_title="Python 盈再表系統", layout="wide", page_icon="📈")
+st.set_page_config(page_title="盈再分析", layout="wide", page_icon="📈")
 
 
 def _yield_to_price(target_yield: float, etf_data) -> float:
@@ -53,6 +53,7 @@ def run_etf_pipeline(symbol: str):
     return etf_data, result
 
 
+# ── session state ──
 if "symbol" not in st.session_state:
     st.session_state.symbol = "2330"
 if "mode" not in st.session_state:
@@ -60,88 +61,81 @@ if "mode" not in st.session_state:
 if "clear_search" not in st.session_state:
     st.session_state.clear_search = False
 
-st.sidebar.title("🔍 股票 / ETF 分析設定")
+# ══════════════════════════════════════════
+#  Sidebar
+# ══════════════════════════════════════════
+st.sidebar.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&family=DM+Mono:wght@400;500&display=swap');
+section[data-testid="stSidebar"] { background: #F2EFE9; border-right: 1px solid #DDD8CF; }
+section[data-testid="stSidebar"] * { font-family: 'Noto Sans JP', sans-serif !important; }
+section[data-testid="stSidebar"] .stButton button {
+    background: #1C1C1E; color: #F7F5F0; border: none;
+    border-radius: 4px; font-weight: 500; letter-spacing: 0.5px;
+}
+.sb-label { font-size: 10px; letter-spacing: 2px; color: #8C8579; text-transform: uppercase; margin-bottom: 4px; }
+</style>
+""", unsafe_allow_html=True)
+
+st.sidebar.markdown('<p style="font-size:18px;font-weight:700;color:#1C1C1E;margin:0;letter-spacing:1px;">盈再分析</p>', unsafe_allow_html=True)
+st.sidebar.markdown('<p style="font-size:10px;color:#8C8579;letter-spacing:2px;margin-top:2px;">EARNINGS REINVESTMENT ANALYZER</p>', unsafe_allow_html=True)
+st.sidebar.divider()
+
 src_bits = []
 if has_finmind_token():
-    src_bits.append("FinMind(台股)")
+    src_bits.append("FinMind")
 if has_twelve_data_key():
     src_bits.append("Twelve Data")
 src_bits.append("yfinance")
 if has_finmind_token() or has_twelve_data_key():
-    st.sidebar.success("資料來源優先序：" + " → ".join(src_bits))
+    st.sidebar.success("資料來源：" + " → ".join(src_bits))
 else:
-    st.sidebar.warning("未設定 FINMIND_TOKEN / TWELVEDATA_API_KEY，目前僅 yfinance")
+    st.sidebar.warning("未設定 API Key，僅使用 yfinance")
 
 mode = st.sidebar.radio(
     "分析模式",
     ["自動偵測", "個股盈再表", "台灣 ETF"],
     index=["自動偵測", "個股盈再表", "台灣 ETF"].index(st.session_state.mode),
-    help="自動偵測會根據代號判斷是個股或 ETF",
     key="mode_radio",
 )
 st.session_state.mode = mode
 
 st.sidebar.divider()
 
-# 單一輸入框：直接輸入代號 or 公司名稱
+import re as _re
 _input_val = st.session_state.get("_symbol_input_val", st.session_state.symbol)
 raw_input = st.sidebar.text_input(
-    "🔎 輸入代號或公司名稱",
+    "代號 / 公司名稱",
     value=_input_val,
-    placeholder="例：2330 / AAPL / 台積電 / Apple",
+    placeholder="2330 · AAPL · 台積電",
     key="unified_input",
 ).strip()
 st.session_state._symbol_input_val = raw_input
 
-# 判斷是否為純代號（純英數或純數字），直接使用；否則做搜尋
-import re as _re
 _is_direct = bool(_re.fullmatch(r"[A-Za-z0-9\.\-]{1,10}", raw_input))
 
 if raw_input and not _is_direct:
     import urllib.parse as _up
-    import re as _re2
-
-    _has_zh = bool(_re2.search(r"[\u4e00-\u9fff]", raw_input))
-
+    _has_zh = bool(_re.search(r"[\u4e00-\u9fff]", raw_input))
     if _has_zh:
-        # 中文輸入：台股用原字，美股加「美股 stock ticker」提升精準度
-        _q_tw   = _up.quote(raw_input)
-        _q_us   = _up.quote(f"{raw_input} 美股 stock ticker")
-        _q_google = _up.quote(f"{raw_input} stock ticker symbol")
-        st.sidebar.markdown(
-            f"""**🔍 查詢「{raw_input}」的股票代號：**
+        _q_tw = _up.quote(raw_input)
+        _q_g  = _up.quote(f"{raw_input} stock ticker symbol")
+        st.sidebar.markdown(f"""**查詢「{raw_input}」代號：**
 
-🇹🇼 台股
-- [Goodinfo 台灣股市資訊網](https://goodinfo.tw/tw/StockList.asp?SEARCH_KEY={_q_tw})
-- [Yahoo 股市（台股）](https://tw.stock.yahoo.com/q/s?q={_q_tw})
+🇹🇼 [Goodinfo]( https://goodinfo.tw/tw/StockList.asp?SEARCH_KEY={_q_tw}) · [Yahoo台股](https://tw.stock.yahoo.com/q/s?q={_q_tw})
+🇺🇸 [Google]( https://www.google.com/search?q={_q_g}) · [Yahoo Finance](https://finance.yahoo.com/search/?q={_up.quote(raw_input)})
 
-🇺🇸 美股 / 全球
-- [Google 搜尋](https://www.google.com/search?q={_q_google})
-- [Yahoo Finance](https://finance.yahoo.com/search/?q={_up.quote(raw_input)})
-- [Finviz](https://finviz.com/search.ashx?q={_up.quote(raw_input)})
-
-查到代號後，貼入上方輸入框即可。""",
-            unsafe_allow_html=False,
-        )
+查到後貼入上方框即可。""")
     else:
-        # 英文輸入：直接用原字，加 stock ticker 輔助
-        _q      = _up.quote(raw_input)
-        _q_full = _up.quote(f"{raw_input} stock ticker")
-        st.sidebar.markdown(
-            f"""**🔍 查詢「{raw_input}」的股票代號：**
+        _q = _up.quote(raw_input)
+        _qf = _up.quote(f"{raw_input} stock ticker")
+        st.sidebar.markdown(f"""**查詢「{raw_input}」代號：**
 
-🇺🇸 美股 / 全球
-- [Google 搜尋](https://www.google.com/search?q={_q_full})
-- [Yahoo Finance](https://finance.yahoo.com/search/?q={_q})
-- [Finviz](https://finviz.com/search.ashx?q={_q})
+🇺🇸 [Google](https://www.google.com/search?q={_qf}) · [Yahoo Finance](https://finance.yahoo.com/search/?q={_q}) · [Finviz](https://finviz.com/search.ashx?q={_q})
+🇹🇼 [Goodinfo](https://goodinfo.tw/tw/StockList.asp?SEARCH_KEY={_q})
 
-🇹🇼 台股
-- [Goodinfo 台灣股市資訊網](https://goodinfo.tw/tw/StockList.asp?SEARCH_KEY={_q})
-
-查到代號後，貼入上方輸入框即可。""",
-            unsafe_allow_html=False,
-        )
-    symbol_input = st.session_state.symbol  # 維持上一次成功的代號
+查到後貼入上方框即可。""")
+    symbol_input = st.session_state.symbol
 elif raw_input and _is_direct:
     symbol_input = raw_input.upper()
 else:
@@ -149,273 +143,357 @@ else:
 
 if mode in ["自動偵測", "台灣 ETF"]:
     st.sidebar.divider()
-    st.sidebar.subheader("📋 ETF 快速選股")
+    st.sidebar.markdown('<p class="sb-label">ETF 快速選股</p>', unsafe_allow_html=True)
     categories = get_etf_categories()
-    selected_cat = st.sidebar.selectbox("ETF 類別", options=list(categories.keys()), index=0)
+    selected_cat = st.sidebar.selectbox("類別", options=list(categories.keys()), index=0, label_visibility="collapsed")
     etf_options = categories[selected_cat]
     etf_labels = [f"{e['symbol']} {e['name']} ({e['freq']})" for e in etf_options]
-    selected_etf_idx = st.sidebar.selectbox("選擇 ETF", options=range(len(etf_labels)), format_func=lambda i: etf_labels[i], index=0)
-    if st.sidebar.button("📌 套用此 ETF", type="secondary"):
+    selected_etf_idx = st.sidebar.selectbox("ETF", options=range(len(etf_labels)), format_func=lambda i: etf_labels[i], index=0, label_visibility="collapsed")
+    if st.sidebar.button("套用此 ETF", type="secondary"):
         st.session_state.symbol = etf_options[selected_etf_idx]["symbol"]
         st.rerun()
 
 st.sidebar.divider()
-search_btn = st.sidebar.button("🚀 開始分析", type="primary", use_container_width=True)
+search_btn = st.sidebar.button("開始分析", type="primary", use_container_width=True)
 
 if search_btn or (symbol_input and symbol_input != st.session_state.symbol):
     st.session_state.symbol = symbol_input
 
 
-def determine_mode(symbol: str, user_mode: str) -> str:
-    if user_mode == "個股盈再表":
-        return "stock"
-    elif user_mode == "台灣 ETF":
-        return "etf"
-    else:
-        return "etf" if is_tw_etf(symbol) else "stock"
-
-
-# ── 全域樣式 ──
+# ══════════════════════════════════════════
+#  Global CSS
+# ══════════════════════════════════════════
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&family=DM+Mono:wght@400;500&display=swap');
 
-html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
-
-.dash-header {
-    background: linear-gradient(135deg, #0f1923 0%, #1a2840 100%);
-    border: 1px solid #2a3f5f;
-    border-radius: 12px;
-    padding: 24px 28px 20px;
-    margin-bottom: 20px;
+html, body, [class*="css"] {
+    font-family: 'Noto Sans JP', sans-serif;
+    background: #F7F5F0;
+    color: #1C1C1E;
 }
-.dash-symbol { font-size: 13px; font-weight: 600; color: #7b9fc7; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 4px; }
-.dash-name   { font-size: 26px; font-weight: 700; color: #e8edf5; margin-bottom: 10px; line-height: 1.2; }
-.signal-pill {
+
+/* ── 通用 section label ── */
+.sec-label {
+    font-size: 10px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: #8C8579;
+    border-bottom: 1px solid #DDD8CF;
+    padding-bottom: 6px;
+    margin: 32px 0 16px;
+}
+
+/* ── Header ── */
+.stock-header {
+    border-left: 3px solid #1C1C1E;
+    padding: 4px 0 4px 16px;
+    margin-bottom: 24px;
+}
+.stock-eyebrow { font-size: 11px; letter-spacing: 2px; color: #8C8579; }
+.stock-name    { font-size: 28px; font-weight: 700; color: #1C1C1E; line-height: 1.2; margin: 4px 0; }
+.signal-tag {
     display: inline-block;
-    padding: 6px 16px;
-    border-radius: 20px;
-    font-size: 15px;
-    font-weight: 600;
-    letter-spacing: 0.3px;
+    font-size: 13px;
+    font-weight: 500;
+    padding: 4px 14px;
+    border-radius: 2px;
+    letter-spacing: 0.5px;
 }
-.signal-green  { background: rgba(0,200,100,0.15); color: #00c864; border: 1px solid rgba(0,200,100,0.3); }
-.signal-yellow { background: rgba(255,190,0,0.15);  color: #ffc107; border: 1px solid rgba(255,190,0,0.3); }
-.signal-red    { background: rgba(255,80,80,0.15);  color: #ff6b6b; border: 1px solid rgba(255,80,80,0.3); }
-.signal-grey   { background: rgba(150,160,180,0.15); color: #9aa5b8; border: 1px solid rgba(150,160,180,0.3); }
+.sig-green  { background: #E8F5ED; color: #1A7A40; }
+.sig-yellow { background: #FEF8E7; color: #8A6A00; }
+.sig-red    { background: #FDECEA; color: #B02020; }
+.sig-grey   { background: #EFEFEF; color: #5A5A5A; }
 
-.kpi-card {
-    background: #131e2b;
-    border: 1px solid #243347;
-    border-radius: 10px;
-    padding: 16px 18px;
+/* ── KPI ── */
+.kpi-wrap {
+    border-top: 2px solid #1C1C1E;
+    border-bottom: 1px solid #DDD8CF;
+    padding: 16px 0;
     text-align: center;
 }
-.kpi-label { font-size: 11px; font-weight: 500; color: #6b80a0; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px; }
-.kpi-value { font-family: 'JetBrains Mono', monospace; font-size: 24px; font-weight: 600; color: #e2e8f3; }
-.kpi-sub   { font-size: 11px; color: #4a6080; margin-top: 3px; }
-.kpi-good  { color: #00c864; }
-.kpi-warn  { color: #ffc107; }
-.kpi-bad   { color: #ff6b6b; }
-
-.criterion-card {
-    border-radius: 8px;
-    padding: 12px 16px;
-    margin-bottom: 8px;
-    border-left: 4px solid;
-    display: flex;
-    align-items: flex-start;
-    gap: 12px;
+.kpi-lbl { font-size: 10px; letter-spacing: 2px; color: #8C8579; margin-bottom: 6px; }
+.kpi-val {
+    font-family: 'DM Mono', monospace;
+    font-size: 26px;
+    font-weight: 500;
+    color: #1C1C1E;
+    line-height: 1;
 }
-.crit-pass { background: rgba(0,200,100,0.06); border-color: #00c864; }
-.crit-fail { background: rgba(255,80,80,0.06);  border-color: #ff6b6b; }
-.crit-na   { background: rgba(150,160,180,0.06); border-color: #4a6080; }
-.crit-icon { font-size: 18px; min-width: 24px; }
-.crit-name { font-size: 14px; font-weight: 600; color: #c8d5e8; }
-.crit-val  { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #7b9fc7; margin-top: 2px; }
-.crit-comment { font-size: 12px; color: #5a7090; margin-top: 2px; }
+.kpi-sub { font-size: 11px; color: #8C8579; margin-top: 4px; }
+.c-green  { color: #1A7A40; }
+.c-amber  { color: #8A6A00; }
+.c-red    { color: #B02020; }
 
-.valuation-bar-wrap { background: #0f1923; border-radius: 10px; padding: 20px 24px; border: 1px solid #243347; margin: 4px 0; }
-.val-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-.val-label { font-size: 12px; color: #6b80a0; }
-.val-price { font-family: 'JetBrains Mono', monospace; font-size: 15px; font-weight: 600; }
-.val-cheap { color: #00c864; }
-.val-fair  { color: #ffc107; }
-.val-exp   { color: #ff6b6b; }
-.price-track { position: relative; height: 8px; background: linear-gradient(to right, #00c864 0%, #ffc107 50%, #ff6b6b 100%); border-radius: 4px; margin: 8px 0 12px; }
-.price-needle { position: absolute; top: -4px; width: 4px; height: 16px; background: white; border-radius: 2px; transform: translateX(-50%); box-shadow: 0 0 6px rgba(255,255,255,0.6); }
-.price-now { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #e2e8f3; text-align: center; margin-top: 4px; }
+/* ── 估值竹節尺 ── */
+.val-ruler {
+    background: #EFECE6;
+    border: 1px solid #DDD8CF;
+    border-radius: 4px;
+    padding: 20px 24px 16px;
+}
+.ruler-labels {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 6px;
+}
+.ruler-lbl { font-size: 10px; letter-spacing: 1px; color: #8C8579; }
+.ruler-price {
+    font-family: 'DM Mono', monospace;
+    font-size: 15px;
+    font-weight: 500;
+}
+.r-green { color: #1A7A40; }
+.r-amber { color: #8A6A00; }
+.r-red   { color: #B02020; }
+.ruler-track {
+    position: relative;
+    height: 10px;
+    border-radius: 2px;
+    background: linear-gradient(to right, #A8D5B5 0%, #EAC96A 50%, #E8908A 100%);
+    margin: 4px 0 10px;
+}
+.ruler-mark {
+    position: absolute;
+    top: -4px;
+    width: 3px;
+    height: 18px;
+    background: #1C1C1E;
+    border-radius: 1px;
+    transform: translateX(-50%);
+}
+.ruler-now {
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    color: #1C1C1E;
+    text-align: center;
+    font-weight: 500;
+}
+.ruler-ticks {
+    display: flex;
+    justify-content: space-between;
+    margin: 0;
+    padding: 0;
+}
+.ruler-tick { font-size: 9px; color: #C0BAB0; }
 
-.section-title { font-size: 13px; font-weight: 600; color: #4a6080; letter-spacing: 1.5px; text-transform: uppercase; margin: 20px 0 12px; border-bottom: 1px solid #1e2f45; padding-bottom: 8px; }
+/* ── 選股原則表格 ── */
+.criteria-table { width: 100%; border-collapse: collapse; }
+.criteria-table tr { border-bottom: 1px solid #EDEAE4; }
+.criteria-table tr:last-child { border-bottom: none; }
+.criteria-table td { padding: 10px 8px; vertical-align: top; font-size: 13px; }
+.crit-icon-cell { width: 28px; font-size: 14px; padding-top: 11px; }
+.crit-name-cell { font-weight: 500; color: #1C1C1E; white-space: nowrap; }
+.crit-val-cell  { font-family: 'DM Mono', monospace; font-size: 12px; color: #5A5A5A; }
+.crit-thr-cell  { font-size: 11px; color: #8C8579; }
+.crit-cmt-cell  { font-size: 11px; color: #8C8579; font-style: italic; }
+.pass-row td { background: transparent; }
+.fail-row td { background: #FEF8F8; }
+.na-row   td { background: transparent; opacity: 0.7; }
 </style>
 """, unsafe_allow_html=True)
 
-st.markdown("<h2 style='color:#c8d5e8;font-size:20px;margin-bottom:4px;'>📊 盈餘再投資率 & ETF 評估儀表板</h2>", unsafe_allow_html=True)
-st.caption("基於巴菲特/洪瑞泰價值投資邏輯 ｜ 5點選股原則")
+
+# ══════════════════════════════════════════
+#  Main
+# ══════════════════════════════════════════
+def determine_mode(symbol: str, user_mode: str) -> str:
+    if user_mode == "個股盈再表":
+        return "stock"
+    if user_mode == "台灣 ETF":
+        return "etf"
+    return "etf" if is_tw_etf(symbol) else "stock"
+
+
+def _sig_cls(signal: str) -> str:
+    if "🟢" in signal or "便宜" in signal: return "sig-green"
+    if "🟡" in signal or "合理" in signal: return "sig-yellow"
+    if "🔴" in signal or "昂貴" in signal: return "sig-red"
+    return "sig-grey"
+
+
+# 頁首
+st.markdown("""
+<div style="display:flex;align-items:baseline;gap:12px;margin-bottom:4px;">
+  <span style="font-size:22px;font-weight:700;letter-spacing:1px;color:#1C1C1E;">盈再分析</span>
+  <span style="font-size:11px;letter-spacing:3px;color:#8C8579;">EARNINGS REINVESTMENT ANALYZER</span>
+</div>
+<div style="font-size:12px;color:#8C8579;border-bottom:1px solid #DDD8CF;padding-bottom:12px;margin-bottom:24px;">
+  基於巴菲特 · 洪瑞泰價值投資邏輯 · 五點選股原則
+</div>
+""", unsafe_allow_html=True)
 
 current_symbol = st.session_state.symbol
-
-def _signal_class(signal: str) -> str:
-    s = signal.lower()
-    if "🟢" in signal or "便宜" in signal: return "signal-green"
-    if "🟡" in signal or "合理" in signal: return "signal-yellow"
-    if "🔴" in signal or "昂貴" in signal: return "signal-red"
-    return "signal-grey"
 
 if current_symbol:
     analysis_mode = determine_mode(current_symbol, mode)
 
+    # ─── ETF ───────────────────────────────────────
     if analysis_mode == "etf":
         try:
-            with st.spinner(f"正在擷取 ETF {current_symbol} 資料..."):
+            with st.spinner("資料擷取中…"):
                 etf_data, result = run_etf_pipeline(current_symbol)
             etf_info = get_etf_info(current_symbol)
             display_name = etf_data.name or etf_info.get("name", current_symbol)
-            sig_cls = _signal_class(result.signal)
+            price_sym = "NT$" if etf_data.market == "TW" else "$"
+
+            # Header
+            cls = _sig_cls(result.signal)
             st.markdown(f"""
-            <div class="dash-header">
-                <div class="dash-symbol">ETF · {etf_info.get("category","—")} · 配息 {etf_info.get("freq","—")}</div>
-                <div class="dash-name">{current_symbol} {display_name}</div>
-                <span class="signal-pill {sig_cls}">{result.signal}</span>
+            <div class="stock-header">
+              <div class="stock-eyebrow">ETF · {etf_info.get("category","—")} · 配息 {etf_info.get("freq","—")}</div>
+              <div class="stock-name">{current_symbol} &nbsp;<span style="font-weight:300;">{display_name}</span></div>
+              <span class="signal-tag {cls}">{result.signal}</span>
             </div>""", unsafe_allow_html=True)
 
+            # KPI
             c1,c2,c3,c4,c5 = st.columns(5)
-            price_lbl = "NT$" if etf_data.market == "TW" else "$"
-            c1.markdown(f'<div class="kpi-card"><div class="kpi-label">目前股價</div><div class="kpi-value">{price_lbl}{etf_data.current_price:,.2f}</div></div>', unsafe_allow_html=True)
-            yld_cls = "kpi-good" if result.current_yield >= result.avg_yield else "kpi-bad"
-            c2.markdown(f'<div class="kpi-card"><div class="kpi-label">近12月殖利率</div><div class="kpi-value {yld_cls}">{result.current_yield}%</div></div>', unsafe_allow_html=True)
-            c3.markdown(f'<div class="kpi-card"><div class="kpi-label">歷年平均殖利率</div><div class="kpi-value">{result.avg_yield}%</div></div>', unsafe_allow_html=True)
-            c4.markdown(f'<div class="kpi-card"><div class="kpi-label">連續配息次數</div><div class="kpi-value">{result.dividend_streak}</div><div class="kpi-sub">次</div></div>', unsafe_allow_html=True)
+            c1.markdown(f'<div class="kpi-wrap"><div class="kpi-lbl">目前股價</div><div class="kpi-val">{price_sym}{etf_data.current_price:,.2f}</div></div>', unsafe_allow_html=True)
+            yc = "c-green" if result.current_yield >= result.avg_yield else "c-red"
+            c2.markdown(f'<div class="kpi-wrap"><div class="kpi-lbl">近12月殖利率</div><div class="kpi-val {yc}">{result.current_yield}%</div></div>', unsafe_allow_html=True)
+            c3.markdown(f'<div class="kpi-wrap"><div class="kpi-lbl">歷年平均殖利率</div><div class="kpi-val">{result.avg_yield}%</div></div>', unsafe_allow_html=True)
+            c4.markdown(f'<div class="kpi-wrap"><div class="kpi-lbl">連續配息</div><div class="kpi-val">{result.dividend_streak}</div><div class="kpi-sub">次</div></div>', unsafe_allow_html=True)
             dd = f"{result.max_drawdown}%" if result.max_drawdown is not None else "—"
-            dd_cls = "kpi-bad" if result.max_drawdown and result.max_drawdown < -20 else "kpi-warn"
-            c5.markdown(f'<div class="kpi-card"><div class="kpi-label">歷史最大回撤</div><div class="kpi-value {dd_cls}">{dd}</div></div>', unsafe_allow_html=True)
+            dc = "c-red" if result.max_drawdown and result.max_drawdown < -20 else "c-amber"
+            c5.markdown(f'<div class="kpi-wrap"><div class="kpi-lbl">最大回撤</div><div class="kpi-val {dc}">{dd}</div></div>', unsafe_allow_html=True)
 
+            # 配息趨勢圖
             if not result.yearly_metrics.empty:
-                st.markdown('<div class="section-title">配息趨勢</div>', unsafe_allow_html=True)
-                fig = go.Figure()
+                st.markdown('<div class="sec-label">配息趨勢</div>', unsafe_allow_html=True)
                 ym = result.yearly_metrics
+                fig = go.Figure()
                 if "yield" in ym.columns:
-                    fig.add_trace(go.Bar(x=ym.index, y=ym["yield"], name="年殖利率(%)", marker_color="#3b82f6", opacity=0.8))
-                fig.add_hline(y=result.avg_yield, line_dash="dash", line_color="#ffc107", annotation_text=f"平均 {result.avg_yield}%")
-                fig.update_layout(height=300, plot_bgcolor="#0f1923", paper_bgcolor="#0f1923",
-                                  font_color="#7b9fc7", showlegend=False,
-                                  xaxis=dict(gridcolor="#1e2f45"), yaxis=dict(gridcolor="#1e2f45"))
+                    fig.add_trace(go.Bar(x=ym.index, y=ym["yield"], name="年殖利率(%)",
+                        marker_color="#6B9E7A", opacity=0.75))
+                fig.add_hline(y=result.avg_yield, line_dash="dot", line_color="#8A6A00",
+                    annotation_text=f"平均 {result.avg_yield}%", annotation_font_color="#8A6A00")
+                fig.update_layout(height=280, plot_bgcolor="#F7F5F0", paper_bgcolor="rgba(0,0,0,0)",
+                    font=dict(color="#5A5A5A", size=11, family="Noto Sans JP"),
+                    showlegend=False, margin=dict(l=0,r=0,t=16,b=0),
+                    xaxis=dict(gridcolor="#EDEAE4"), yaxis=dict(gridcolor="#EDEAE4"))
                 st.plotly_chart(fig, use_container_width=True)
+
         except Exception as e:
             st.error(f"無法取得 ETF `{current_symbol}` 的資料。\n\n**錯誤：** {e}")
 
+    # ─── 個股 ──────────────────────────────────────
     else:
         try:
-            with st.spinner("正在擷取歷年財報並運算中..."):
+            with st.spinner("財報擷取中…"):
                 stock, metrics, val = run_stock_pipeline(current_symbol)
 
             if stock.data_quality == "insufficient":
-                st.error("❌ 財報資料嚴重不足，結果可能不可靠。")
+                st.warning("財報資料不足，分析結果僅供參考。")
+
+            mkt_lbl  = "台股" if stock.market in ("TW","TWO") else "美股"
+            price_sym = "NT$" if stock.market in ("TW","TWO") else "$"
 
             # ── Header ──
-            sig_cls = _signal_class(val.signal)
-            mkt_lbl = "台股" if stock.market in ("TW","TWO") else "美股"
-            price_sym = "NT$" if stock.market in ("TW","TWO") else "$"
+            cls = _sig_cls(val.signal)
             st.markdown(f"""
-            <div class="dash-header">
-                <div class="dash-symbol">{mkt_lbl} · {current_symbol}</div>
-                <div class="dash-name">{stock.name}</div>
-                <span class="signal-pill {sig_cls}">{val.signal}</span>
+            <div class="stock-header">
+              <div class="stock-eyebrow">{mkt_lbl} · {current_symbol}</div>
+              <div class="stock-name">{stock.name}</div>
+              <span class="signal-tag {cls}">{val.signal}</span>
             </div>""", unsafe_allow_html=True)
 
-            # ── KPI 列 ──
+            # ── KPI ──
             c1,c2,c3,c4 = st.columns(4)
-            c1.markdown(f'''<div class="kpi-card"><div class="kpi-label">目前股價</div>
-                <div class="kpi-value">{price_sym}{stock.current_price:,.2f}</div></div>''', unsafe_allow_html=True)
-            rr_cls = "kpi-good" if val.reinvest_rate < 80 else "kpi-bad"
-            c2.markdown(f'''<div class="kpi-card"><div class="kpi-label">最新盈再率</div>
-                <div class="kpi-value {rr_cls}">{val.reinvest_rate}%</div>
-                <div class="kpi-sub">{"✓ 達標 <80%" if val.reinvest_rate < 80 else "✗ 偏高"}</div></div>''', unsafe_allow_html=True)
-            roe_cls = "kpi-good" if val.avg_roe > 15 else ("kpi-warn" if val.avg_roe > 10 else "kpi-bad")
-            c3.markdown(f'''<div class="kpi-card"><div class="kpi-label">近五年平均 ROE</div>
-                <div class="kpi-value {roe_cls}">{val.avg_roe}%</div>
-                <div class="kpi-sub">{"✓ 達標 >15%" if val.avg_roe > 15 else "✗ 未達標"}</div></div>''', unsafe_allow_html=True)
+            c1.markdown(f'<div class="kpi-wrap"><div class="kpi-lbl">目前股價</div><div class="kpi-val">{price_sym}{stock.current_price:,.2f}</div></div>', unsafe_allow_html=True)
+            rc = "c-green" if val.reinvest_rate < 80 else "c-red"
+            rs = "達標" if val.reinvest_rate < 80 else "偏高"
+            c2.markdown(f'<div class="kpi-wrap"><div class="kpi-lbl">最新盈再率</div><div class="kpi-val {rc}">{val.reinvest_rate}%</div><div class="kpi-sub">{rs}</div></div>', unsafe_allow_html=True)
+            oc = "c-green" if val.avg_roe > 15 else ("c-amber" if val.avg_roe > 10 else "c-red")
+            os_ = "達標" if val.avg_roe > 15 else "未達標"
+            c3.markdown(f'<div class="kpi-wrap"><div class="kpi-lbl">五年平均 ROE</div><div class="kpi-val {oc}">{val.avg_roe}%</div><div class="kpi-sub">{os_}</div></div>', unsafe_allow_html=True)
             bv = f"{price_sym}{val.book_value_used:,.2f}" if val.book_value_used else "—"
-            c4.markdown(f'''<div class="kpi-card"><div class="kpi-label">每股淨值</div>
-                <div class="kpi-value">{bv}</div>
-                <div class="kpi-sub">{val.base_value_method}</div></div>''', unsafe_allow_html=True)
+            c4.markdown(f'<div class="kpi-wrap"><div class="kpi-lbl">每股淨值</div><div class="kpi-val">{bv}</div></div>', unsafe_allow_html=True)
 
-            # ── 估值區間 ──
-            st.markdown('<div class="section-title">估值價格區間</div>', unsafe_allow_html=True)
+            # ── 估值竹節尺 ──
+            st.markdown('<div class="sec-label">估值價格區間</div>', unsafe_allow_html=True)
             price = stock.current_price
             cheap, fair, exp = val.cheap, val.fair, val.expensive
-            lo, hi = min(cheap * 0.85, price * 0.85), max(exp * 1.15, price * 1.15)
-            rng = hi - lo
-            pct_cheap = (cheap - lo) / rng * 100
-            pct_fair  = (fair  - lo) / rng * 100
-            pct_exp   = (exp   - lo) / rng * 100
-            pct_now   = max(0, min(100, (price - lo) / rng * 100))
+            lo = min(cheap * 0.82, price * 0.82)
+            hi = max(exp * 1.18, price * 1.18)
+            rng = hi - lo or 1
+            pct_now = max(1, min(99, (price - lo) / rng * 100))
             st.markdown(f"""
-            <div class="valuation-bar-wrap">
-                <div class="val-row">
-                    <span class="val-label">便宜價</span>
-                    <span class="val-price val-cheap">{price_sym}{cheap:,.2f}</span>
-                    <span class="val-label">合理價</span>
-                    <span class="val-price val-fair">{price_sym}{fair:,.2f}</span>
-                    <span class="val-label">昂貴價</span>
-                    <span class="val-price val-exp">{price_sym}{exp:,.2f}</span>
-                </div>
-                <div class="price-track">
-                    <div class="price-needle" style="left:{pct_now:.1f}%"></div>
-                </div>
-                <div class="price-now">▲ 目前股價 {price_sym}{price:,.2f}</div>
+            <div class="val-ruler">
+              <div class="ruler-labels">
+                <div><div class="ruler-lbl">便宜價</div><div class="ruler-price r-green">{price_sym}{cheap:,.2f}</div></div>
+                <div style="text-align:center;"><div class="ruler-lbl">合理價</div><div class="ruler-price r-amber">{price_sym}{fair:,.2f}</div></div>
+                <div style="text-align:right;"><div class="ruler-lbl">昂貴價</div><div class="ruler-price r-red">{price_sym}{exp:,.2f}</div></div>
+              </div>
+              <div class="ruler-track">
+                <div class="ruler-mark" style="left:{pct_now:.1f}%"></div>
+              </div>
+              <div class="ruler-now">▲ &nbsp;目前股價 &nbsp;{price_sym}{price:,.2f}</div>
             </div>""", unsafe_allow_html=True)
 
-            # ── 5點選股原則 ──
-            st.markdown('<div class="section-title">5點選股原則</div>', unsafe_allow_html=True)
+            # ── 五點選股原則 ──
+            st.markdown('<div class="sec-label">五點選股原則</div>', unsafe_allow_html=True)
             if val.all_critical_passed:
-                st.success("🎉 所有關鍵條件皆達標！")
+                st.success("すべての条件達成 — 所有關鍵條件皆達標")
+            rows_html = ""
             for c in val.criteria:
                 if c.passed is True:
-                    cls, icon = "crit-pass", "✅"
+                    row_cls, icon = "pass-row", "✅"
                 elif c.passed is False:
-                    cls, icon = "crit-fail", "❌"
+                    row_cls, icon = "fail-row", "❌"
                 else:
-                    cls, icon = "crit-na", "⚪"
-                st.markdown(f"""
-                <div class="criterion-card {cls}">
-                    <div class="crit-icon">{icon}</div>
-                    <div>
-                        <div class="crit-name">{c.name}</div>
-                        <div class="crit-val">{c.value or "—"} <span style="color:#3a5070">（門檻：{c.threshold}）</span></div>
-                        <div class="crit-comment">{c.comment}</div>
-                    </div>
-                </div>""", unsafe_allow_html=True)
+                    row_cls, icon = "na-row", "　"
+                rows_html += f"""
+                <tr class="{row_cls}">
+                  <td class="crit-icon-cell">{icon}</td>
+                  <td class="crit-name-cell">{c.name}</td>
+                  <td class="crit-val-cell">{c.value or "—"}</td>
+                  <td class="crit-thr-cell">{c.threshold}</td>
+                  <td class="crit-cmt-cell">{c.comment}</td>
+                </tr>"""
+            st.markdown(f"""
+            <table class="criteria-table">
+              <thead><tr style="border-bottom:2px solid #1C1C1E;">
+                <th style="width:28px;"></th>
+                <th style="text-align:left;font-size:10px;letter-spacing:2px;color:#8C8579;font-weight:500;padding:6px 8px;">項目</th>
+                <th style="text-align:left;font-size:10px;letter-spacing:2px;color:#8C8579;font-weight:500;padding:6px 8px;">數值</th>
+                <th style="text-align:left;font-size:10px;letter-spacing:2px;color:#8C8579;font-weight:500;padding:6px 8px;">門檻</th>
+                <th style="text-align:left;font-size:10px;letter-spacing:2px;color:#8C8579;font-weight:500;padding:6px 8px;">備註</th>
+              </tr></thead>
+              <tbody>{rows_html}</tbody>
+            </table>""", unsafe_allow_html=True)
 
             # ── 趨勢圖 ──
-            st.markdown('<div class="section-title">歷年財務趨勢</div>', unsafe_allow_html=True)
+            st.markdown('<div class="sec-label">歷年財務趨勢</div>', unsafe_allow_html=True)
             fig = go.Figure()
-            fig.add_trace(go.Scatter(x=metrics.index, y=metrics["roe"],
+            fig.add_trace(go.Scatter(
+                x=metrics.index, y=metrics["roe"],
                 mode="lines+markers", name="ROE (%)",
-                line=dict(color="#3b82f6", width=2.5),
-                marker=dict(size=6, color="#3b82f6")))
-            fig.add_trace(go.Bar(x=metrics.index, y=metrics["reinvest_rate"],
-                name="盈再率 (%)", marker_color="#8b5cf6", opacity=0.55, yaxis="y2"))
-            fig.add_hline(y=15, line_dash="dot", line_color="#00c864", line_width=1,
-                annotation_text="ROE 15%", annotation_font_color="#00c864", annotation_font_size=11)
-            fig.add_hline(y=80, line_dash="dot", line_color="#ffc107", line_width=1,
-                annotation_text="盈再 80%", annotation_font_color="#ffc107",
-                annotation_font_size=11, yref="y2")
+                line=dict(color="#2D6A4F", width=2),
+                marker=dict(size=5, color="#2D6A4F", symbol="circle")))
+            fig.add_trace(go.Bar(
+                x=metrics.index, y=metrics["reinvest_rate"],
+                name="盈再率 (%)", marker_color="#C0392B", opacity=0.25, yaxis="y2"))
+            fig.add_hline(y=15, line_dash="dot", line_color="#2D6A4F", line_width=1,
+                annotation_text="ROE 15%", annotation_font_color="#2D6A4F", annotation_font_size=10)
+            fig.add_hline(y=80, line_dash="dot", line_color="#C0392B", line_width=1,
+                annotation_text="盈再 80%", annotation_font_color="#C0392B",
+                annotation_font_size=10, yref="y2")
             fig.update_layout(
-                height=380,
-                plot_bgcolor="#0f1923", paper_bgcolor="rgba(0,0,0,0)",
-                font=dict(color="#7b9fc7", size=12),
-                legend=dict(orientation="h", y=1.08, x=0, font_color="#9aa5b8"),
+                height=340,
+                plot_bgcolor="#F7F5F0", paper_bgcolor="rgba(0,0,0,0)",
+                font=dict(color="#8C8579", size=11, family="Noto Sans JP"),
+                legend=dict(orientation="h", y=1.06, x=0, bgcolor="rgba(0,0,0,0)"),
                 hovermode="x unified",
-                xaxis=dict(gridcolor="#1e2f45", showgrid=True),
-                yaxis=dict(title="ROE %", gridcolor="#1e2f45", showgrid=True),
+                xaxis=dict(gridcolor="#EDEAE4", showgrid=True, zeroline=False),
+                yaxis=dict(title="ROE %", gridcolor="#EDEAE4", showgrid=True, zeroline=False),
                 yaxis2=dict(title="盈再率 %", overlaying="y", side="right",
                             showgrid=False, range=[0, max(200, metrics["reinvest_rate"].max() * 1.3)]),
-                margin=dict(l=10, r=10, t=30, b=10),
+                margin=dict(l=0, r=0, t=30, b=0),
             )
             st.plotly_chart(fig, use_container_width=True)
 
-            with st.expander("📋 查看歷年財報數據"):
+            # ── 財報明細 ──
+            with st.expander("財報明細"):
                 col_rename = {"net_income":"淨利","equity":"股東權益",
                               "fixed_assets":"固定資產","long_term_invest":"長期投資",
                               "roe":"ROE(%)","reinvest_rate":"盈再率(%)"}
@@ -426,10 +504,10 @@ if current_symbol:
         except Exception as e:
             st.error(f"無法取得股票 `{current_symbol}` 的資料。\n\n**錯誤：** {e}")
             st.info("請確認代號（台股 2330、美股 AAPL），或該標的財報是否已公開。")
+
 else:
     st.markdown("""
-    <div style="text-align:center;padding:60px 20px;color:#3a5070;">
-        <div style="font-size:48px;margin-bottom:16px;">📊</div>
-        <div style="font-size:18px;font-weight:600;color:#6b80a0;margin-bottom:8px;">輸入股票代號開始分析</div>
-        <div style="font-size:14px;">台股輸入數字代號（如 2330），美股輸入英文代號（如 AAPL）</div>
+    <div style="padding:80px 0;text-align:center;">
+      <div style="font-size:13px;letter-spacing:4px;color:#C0BAB0;margin-bottom:12px;">ENTER A SYMBOL TO BEGIN</div>
+      <div style="font-size:36px;font-weight:700;color:#DDD8CF;">—</div>
     </div>""", unsafe_allow_html=True)
