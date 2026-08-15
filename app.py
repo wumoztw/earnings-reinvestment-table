@@ -421,9 +421,7 @@ if current_symbol:
                               "roe":"ROE(%)","reinvest_rate":"盈再率(%)"}
                 display_cols = [c for c in col_rename if c in metrics.columns]
                 df_show = metrics[display_cols].rename(columns=col_rename)
-                st.dataframe(df_show.style.format("{:.2f}").background_gradient(
-                    subset=["ROE(%)"] if "ROE(%)" in df_show.columns else [],
-                    cmap="Blues"), use_container_width=True)
+                st.dataframe(df_show.style.format("{:.2f}"), use_container_width=True)
 
         except Exception as e:
             st.error(f"無法取得股票 `{current_symbol}` 的資料。\n\n**錯誤：** {e}")
