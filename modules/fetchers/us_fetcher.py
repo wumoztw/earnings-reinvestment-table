@@ -1,11 +1,10 @@
 # modules/fetchers/us_fetcher.py
 """
 通用個股資料抓取器
-優先使用 Twelve Data（若有 TWELVEDATA_API_KEY），失敗或無 key 時 fallback 到 yfinance。
 
-支援：
-- 台股（數字代號，自動 TWSE / Taiwan）
-- 美股（AAPL 等）
+資料來源優先序：
+- 台股：FinMind（財報/股利）→ Twelve Data → yfinance
+- 美股：Twelve Data → yfinance
 """
 from __future__ import annotations
 
@@ -14,15 +13,17 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, timezone
 from typing import Optional, List, Tuple, Dict, Any
+from collections import defaultdict
 
 from core.interfaces import BaseFetcher
 from core.schemas import StockData
 from modules.utils.cache import cached
 from modules.utils.twelve_client import TwelveDataClient, TwelveDataError, has_twelve_data_key
+from modules.utils.finmind_client import FinMindClient, FinMindError, has_finmind_token
 
 
 class UniversalFetcher(BaseFetcher):
-    """通用抓取器：優先 Twelve Data，備援 yfinance"""
+    """通用抓取器：台股 FinMind→Twelve→yf；美股 Twelve→yf"""
 
     NET_INCOME_KEYS = [
         "Net Income",
@@ -58,17 +59,159 @@ class UniversalFetcher(BaseFetcher):
             return clean, "TWSE", "Taiwan", "TW"
         return clean, None, None, "US"
 
-    @cached("stock_fetch_v2", ttl=6 * 3600)
+    @cached("stock_fetch_v3", ttl=6 * 3600)
     def fetch(self, symbol: str) -> StockData:
         clean, exchange, country, market = self._resolve_symbol(symbol)
+        errors = []
+
+        if market == "TW":
+            try:
+                return self._fetch_finmind(clean)
+            except Exception as e:
+                errors.append(f"FinMind: {e}")
+                print(f"[UniversalFetcher] FinMind 失敗 ({clean}): {e}")
+
+            if has_twelve_data_key():
+                try:
+                    return self._fetch_twelve(clean, exchange, country, market)
+                except Exception as e:
+                    errors.append(f"TwelveData: {e}")
+                    print(f"[UniversalFetcher] Twelve Data 失敗 ({clean}): {e}")
+
+            try:
+                return self._fetch_yfinance(clean, market)
+            except Exception as e:
+                errors.append(f"yfinance: {e}")
+                raise ValueError(f"台股 {clean} 三層來源皆失敗：{' | '.join(errors)}") from e
 
         if has_twelve_data_key():
             try:
                 return self._fetch_twelve(clean, exchange, country, market)
             except Exception as e:
+                errors.append(f"TwelveData: {e}")
                 print(f"[UniversalFetcher] Twelve Data 失敗 ({clean}): {e} → fallback yfinance")
 
-        return self._fetch_yfinance(clean, market)
+        try:
+            return self._fetch_yfinance(clean, market)
+        except Exception as e:
+            errors.append(f"yfinance: {e}")
+            raise ValueError(f"美股 {clean} 來源皆失敗：{' | '.join(errors)}") from e
+
+    def _fetch_finmind(self, clean: str) -> StockData:
+        client = FinMindClient()
+
+        inc_rows = client.financial_statements(clean, start_date="2015-01-01")
+        bs_rows = client.balance_sheet(clean, start_date="2015-01-01")
+        if not inc_rows or not bs_rows:
+            raise FinMindError(f"{clean} FinMind 財報為空")
+
+        def pivot_by_year(rows, type_candidates, prefer_year_end=True):
+            buckets = defaultdict(list)
+            for r in rows:
+                t = r.get("type")
+                if t not in type_candidates:
+                    continue
+                date_s = str(r.get("date") or "")
+                if len(date_s) < 7:
+                    continue
+                try:
+                    y = int(date_s[:4])
+                    m = int(date_s[5:7])
+                    v = float(r["value"]) if r.get("value") is not None else None
+                except (TypeError, ValueError):
+                    continue
+                if v is None:
+                    continue
+                buckets[y].append((m, v))
+
+            out = {}
+            for y, items in buckets.items():
+                if prefer_year_end:
+                    dec = [v for m, v in items if m == 12]
+                    if dec:
+                        out[y] = dec[-1]
+                    else:
+                        items_sorted = sorted(items, key=lambda x: x[0])
+                        out[y] = items_sorted[-1][1]
+                else:
+                    out[y] = sorted(items, key=lambda x: x[0])[-1][1]
+            return out
+
+        ni_map = pivot_by_year(inc_rows, ["IncomeAfterTaxes", "IncomeFromContinuingOperations"])
+        eq_map = pivot_by_year(bs_rows, ["EquityAttributableToOwnersOfParent", "Equity"])
+        ppe_map = pivot_by_year(bs_rows, ["PropertyPlantAndEquipment"])
+        lti_map = pivot_by_year(bs_rows, ["InvestmentAccountedForUsingEquityMethod"])
+
+        common_years = sorted(set(ni_map.keys()) & set(eq_map.keys()))
+        if len(common_years) < 2:
+            raise FinMindError(
+                f"{clean} FinMind 共同年度不足（淨利年={len(ni_map)} 權益年={len(eq_map)}）"
+            )
+
+        rows = []
+        for y in common_years:
+            rows.append({
+                "year": y,
+                "net_income": ni_map.get(y),
+                "equity": eq_map.get(y),
+                "fixed_assets": ppe_map.get(y),
+                "long_term_invest": lti_map.get(y, 0.0) or 0.0,
+            })
+        df = pd.DataFrame(rows).set_index("year").sort_index()
+
+        required = ["net_income", "equity"]
+        missing_ratio = df[required].isna().mean().mean()
+        if "fixed_assets" in df.columns:
+            fa_miss = df["fixed_assets"].isna().mean()
+            missing_ratio = (missing_ratio + fa_miss) / 2
+        if missing_ratio > 0.5:
+            data_quality = "insufficient"
+        elif missing_ratio > 0.1:
+            data_quality = "partial"
+        else:
+            data_quality = "ok"
+
+        if pd.isna(df["equity"].iloc[-1]) or pd.isna(df["net_income"].iloc[-1]):
+            raise FinMindError(f"{clean} FinMind 最新淨利或權益缺失")
+
+        price = 0.0
+        try:
+            price_rows = client.price(clean, start_date="2024-01-01")
+            if price_rows:
+                price_rows_sorted = sorted(price_rows, key=lambda x: str(x.get("date") or ""))
+                last = price_rows_sorted[-1]
+                price = float(last.get("close") or last.get("Close") or 0)
+        except Exception as e:
+            print(f"[FinMind] 股價取得失敗 ({clean}): {e}")
+
+        payout_ratio = None
+        name = clean
+        try:
+            info_list = client.stock_info()
+            for it in info_list:
+                if str(it.get("stock_id")) == clean:
+                    name = it.get("stock_name") or name
+                    break
+        except Exception:
+            pass
+
+        latest_net_income = float(df["net_income"].iloc[-1])
+
+        return StockData(
+            symbol=clean,
+            name=str(name),
+            market="TW",
+            current_price=float(price or 0),
+            financials=df,
+            book_value_per_share=None,
+            shares_outstanding=None,
+            data_quality=data_quality,
+            payout_ratio=payout_ratio,
+            insider_holding_pct=None,
+            years_listed=None,
+            latest_net_income=latest_net_income,
+            listing_date_str=None,
+        )
 
     def _fetch_twelve(
         self, clean: str, exchange: Optional[str], country: Optional[str], market: str
