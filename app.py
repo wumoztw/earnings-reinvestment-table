@@ -10,7 +10,7 @@ from modules.calculators.etf_metrics import EtfMetricsCalculator
 from modules.valuators.valuation import ValueInvestingValuator
 from modules.utils.twelve_client import has_twelve_data_key
 from modules.utils.finmind_client import has_finmind_token
-from modules.utils.symbol_search import search_symbols
+from modules.utils.symbol_search import search_symbols, get_tw_stock_list_debug
 
 st.set_page_config(page_title="Python 盈再表系統", layout="wide", page_icon="📈")
 

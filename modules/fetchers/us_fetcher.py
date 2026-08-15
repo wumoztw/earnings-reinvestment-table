@@ -53,18 +53,44 @@ class UniversalFetcher(BaseFetcher):
         "Other Long Term Investments",
     ]
 
+    # 上櫃(TPEx)股票代號範圍（4碼數字，非上市的部分）
+    # 上市(TWSE)：1000-2999, 4000-4999, 6000-6999（部分）
+    # 上櫃(TPEx)：3000-3999, 5000-5999, 6000-6999（部分）, 8000-8999
+    # 最準確的做法：查 FinMind 清單，這裡用常見範圍做近似判斷
+    _TPEX_PREFIXES = ("3", "5", "8", "41", "43", "45", "46", "47", "48", "49",
+                      "60", "62", "63", "64", "65", "66", "67", "68", "69")
+
+    def _is_tpex(self, code: str) -> bool:
+        """近似判斷是否為上櫃(TPEx)股票，無法確定時回傳 False（走上市路徑）。"""
+        if not code.isdigit() or len(code) != 4:
+            return False
+        # 以 FinMind 清單做精準判斷
+        try:
+            from modules.utils.symbol_search import _get_tw_stock_list
+            lst = _get_tw_stock_list()
+            for item in lst:
+                if item["symbol"] == code:
+                    return item["exchange"] == "TPEx"
+        except Exception:
+            pass
+        # fallback：前綴近似判斷
+        for prefix in self._TPEX_PREFIXES:
+            if code.startswith(prefix):
+                return True
+        return False
+
     def _resolve_symbol(self, symbol: str) -> Tuple[str, Optional[str], Optional[str], str]:
         clean = symbol.strip().upper().replace(".TW", "").replace(".TWO", "")
         if clean.isdigit():
+            if self._is_tpex(clean):
+                return clean, "TPEX", "Taiwan", "TWO"
             return clean, "TWSE", "Taiwan", "TW"
-        return clean, None, None, "US"
-
     @cached("stock_fetch_v3", ttl=6 * 3600)
     def fetch(self, symbol: str) -> StockData:
         clean, exchange, country, market = self._resolve_symbol(symbol)
         errors = []
 
-        if market == "TW":
+        if market in ("TW", "TWO"):
             try:
                 return self._fetch_finmind(clean)
             except Exception as e:
@@ -380,7 +406,12 @@ class UniversalFetcher(BaseFetcher):
             return None
 
     def _fetch_yfinance(self, clean: str, market: str) -> StockData:
-        ticker_symbol = f"{clean}.TW" if market == "TW" else clean
+        if market == "TW":
+            ticker_symbol = f"{clean}.TW"
+        elif market == "TWO":
+            ticker_symbol = f"{clean}.TWO"
+        else:
+            ticker_symbol = clean
         ticker = yf.Ticker(ticker_symbol)
 
         try:

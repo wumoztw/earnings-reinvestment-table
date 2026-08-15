@@ -27,14 +27,10 @@ def _is_tw_query(query: str) -> bool:
 # ---------- TWSE 開放 API 搜尋（台股主力，免金鑰） ----------
 
 _TWSE_CACHE: List[Dict] = []
+_TWSE_LAST_ERROR: str = ""
 
 def _get_tw_stock_list() -> List[Dict]:
-    """
-    取得台股完整清單（上市+上櫃），快取於模組層級。
-    主力：FinMind TaiwanStockInfo（含上市+上櫃+公司名稱）
-    Fallback：TWSE 行情 API（只有上市，無公司名稱時以代號代替）
-    """
-    global _TWSE_CACHE
+    global _TWSE_CACHE, _TWSE_LAST_ERROR
     if _TWSE_CACHE:
         return _TWSE_CACHE
 
@@ -43,7 +39,9 @@ def _get_tw_stock_list() -> List[Dict]:
     # 主力：FinMind（上市+上櫃，含公司名稱）
     try:
         from modules.utils.finmind_client import FinMindClient, has_finmind_token
-        if has_finmind_token():
+        if not has_finmind_token():
+            _TWSE_LAST_ERROR = "FinMind: 未設定 token"
+        else:
             client = FinMindClient()
             resp = requests.get(
                 "https://api.finmindtrade.com/api/v4/data",
@@ -52,6 +50,7 @@ def _get_tw_stock_list() -> List[Dict]:
             )
             resp.raise_for_status()
             data = resp.json().get("data", [])
+            _TWSE_LAST_ERROR = f"FinMind OK: {len(data)} 筆"
             for item in data:
                 code = str(item.get("stock_id", "")).strip()
                 name = str(item.get("stock_name", "")).strip()
@@ -59,10 +58,10 @@ def _get_tw_stock_list() -> List[Dict]:
                 if code and name:
                     exchange = "TPEx" if market in ("otc", "OTC", "上櫃") else "TWSE"
                     results.append({"symbol": code, "name": name, "exchange": exchange})
-    except Exception:
-        pass
+    except Exception as e:
+        _TWSE_LAST_ERROR = f"FinMind 錯誤: {e}"
 
-    # Fallback：TWSE 行情 API（只有上市，名稱欄位為 Name）
+    # Fallback：TWSE 行情 API
     if not results:
         try:
             r = requests.get(
@@ -75,11 +74,18 @@ def _get_tw_stock_list() -> List[Dict]:
                 name = item.get("Name", "").strip()
                 if code and name:
                     results.append({"symbol": code, "name": name, "exchange": "TWSE"})
-        except Exception:
-            pass
+            _TWSE_LAST_ERROR += f" | TWSE fallback: {len(results)} 筆"
+        except Exception as e:
+            _TWSE_LAST_ERROR += f" | TWSE fallback 錯誤: {e}"
 
     _TWSE_CACHE = results
     return results
+
+
+def get_tw_stock_list_debug() -> str:
+    """回傳上次載入台股清單的狀態，供 debug 用。"""
+    _get_tw_stock_list()
+    return _TWSE_LAST_ERROR
 
 
 def _search_twse(query: str, max_results: int = 8) -> List[Dict]:
