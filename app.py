@@ -118,19 +118,34 @@ section[data-testid="stSidebar"] { display: none !important; }
     background: #EFECE6;
     border: 1px solid #DDD8CF;
     border-radius: 8px;
-    padding: 16px 20px 12px;
+    padding: 18px 24px 14px;
     margin-bottom: 28px;
+    display: flex;
+    align-items: stretch;
 }
-.ctrl-brand { padding-top: 2px; }
-.ctrl-brand-name { font-size: 16px; font-weight: 700; letter-spacing: 1px; color: #1C1C1E; }
-.ctrl-brand-sub  { font-size: 9px; letter-spacing: 2.5px; color: #B0AA9F; margin-top: 2px; }
+.ctrl-brand {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    min-height: 58px;
+}
+.ctrl-brand-name { font-size: 17px; font-weight: 700; letter-spacing: 1px; color: #1C1C1E; line-height: 1.3; }
+.ctrl-brand-sub  { font-size: 9px; letter-spacing: 2.5px; color: #B0AA9F; margin-top: 3px; }
 .ctrl-src        { font-size: 10px; color: #8C8579; margin-top: 6px; letter-spacing: 0.5px; }
-.ctrl-sep        { width: 1px; height: 60px; background: #DDD8CF; margin: 4px auto; }
-.ctrl-lbl        { font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: #B0AA9F; margin-bottom: 4px; }
+.ctrl-sep        { width: 1px; align-self: stretch; background: #DDD8CF; margin: 2px auto; min-height: 46px; }
+.ctrl-lbl        { font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: #B0AA9F; margin-bottom: 6px; font-weight: 500; }
 .sec-label {
     font-size: 10px; letter-spacing: 3px; text-transform: uppercase;
     color: #8C8579; border-bottom: 1px solid #DDD8CF;
     padding-bottom: 6px; margin: 28px 0 14px;
+}
+
+/* 控制卡片內各區塊對齊 */
+.ctrl-card [data-testid="stHorizontalBlock"] {
+    align-items: flex-end;
+}
+.ctrl-card [data-testid="stButton"] {
+    margin-top: auto;
 }
 
 /* ── Header ── */
@@ -218,7 +233,7 @@ src_label = " → ".join(src_bits)
 # 外框卡片開始
 st.markdown('<div class="ctrl-card">', unsafe_allow_html=True)
 
-col_brand, col_sep, col_main, col_etf, col_actions = st.columns([1.6, 0.05, 3.2, 3.2, 1.4])
+col_brand, col_sep, col_main, col_etf, col_actions = st.columns([1.5, 0.04, 3.0, 3.2, 1.5])
 
 with col_brand:
     st.markdown(f"""
