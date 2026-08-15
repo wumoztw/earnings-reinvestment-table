@@ -8,6 +8,7 @@ from modules.fetchers.etf_registry import is_tw_etf, get_etf_categories, get_etf
 from modules.calculators.metrics import FinancialMetricsCalculator
 from modules.calculators.etf_metrics import EtfMetricsCalculator
 from modules.valuators.valuation import ValueInvestingValuator
+from modules.utils.twelve_client import has_twelve_data_key
 
 st.set_page_config(page_title="Python 盈再表系統", layout="wide", page_icon="📈")
 
@@ -56,6 +57,10 @@ if "mode" not in st.session_state:
     st.session_state.mode = "自動偵測"
 
 st.sidebar.title("🔍 股票 / ETF 分析設定")
+if has_twelve_data_key():
+    st.sidebar.success("資料來源：Twelve Data（優先）+ yfinance 備援")
+else:
+    st.sidebar.warning("未偵測到 TWELVEDATA_API_KEY，目前僅使用 yfinance")
 
 mode = st.sidebar.radio(
     "分析模式",
@@ -101,7 +106,7 @@ def determine_mode(symbol: str, user_mode: str) -> str:
 
 
 st.title("📊 盈餘再投資率 & ETF 評估儀表板")
-st.caption("基於巴菲特/洪瑞泰價值投資邏輯 + 5點選股原則的自動化開源分析工具")
+st.caption("基於巴菲特/洪瑞泰價值投資邏輯 + 5點選股原則的自動化開源分析工具｜資料優先 Twelve Data")
 
 current_symbol = st.session_state.symbol
 
@@ -204,7 +209,6 @@ if current_symbol:
             st.info("請確認代號是否正確（例如 0050、00878、00679B），或稍後再試。")
     
     else:
-        # 個股模式
         try:
             with st.spinner("正在擷取歷年財報並運算中..."):
                 stock, metrics, val = run_stock_pipeline(current_symbol)
@@ -242,7 +246,7 @@ if current_symbol:
                 cols[2].markdown(f"`{c.value}`")
                 cols[3].caption(c.comment)
             
-            st.caption("說明：董監持股資料來自 yfinance heldPercentInsiders，台股常有估低或缺失情況，僅供參考。ROE穩定定義：至少4年資料、平均>15%、最低≥10%、變異係數CV<0.45。")
+            st.caption("說明：董監持股資料來自 Twelve Data statistics 或 yfinance heldPercentInsiders，台股可能估低或缺失。ROE穩定定義：至少4年資料、平均>15%、最低≥10%、CV<0.45。")
 
             st.divider()
             st.subheader("🎯 估值價格區間")
