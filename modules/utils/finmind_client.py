@@ -67,7 +67,23 @@ class FinMindClient:
         response = requests.get(self.base_url, params=params)
         response.raise_for_status()
         data = response.json()
-
         if data.get("status") == 200 and "data" in data:
             return pd.DataFrame(data["data"])
         return pd.DataFrame()
+
+    def financial_statements(self, data_id: str, start_date: str = "2015-01-01") -> list:
+        df = self.get_data("TaiwanStockFinancialStatements", data_id, start_date)
+        return df.to_dict("records") if df is not None and not df.empty else []
+
+    def balance_sheet(self, data_id: str, start_date: str = "2015-01-01") -> list:
+        df = self.get_data("TaiwanStockBalanceSheet", data_id, start_date)
+        return df.to_dict("records") if not df.empty else []
+
+    def price(self, data_id: str, start_date: str = "2024-01-01") -> list:
+        df = self.get_data("TaiwanStockPrice", data_id, start_date)
+        return df.to_dict("records") if not df.empty else []
+
+    def stock_info(self) -> list:
+        df = self.get_data("TaiwanStockInfo", "", "2020-01-01")
+        return df.to_dict("records") if not df.empty else []
+

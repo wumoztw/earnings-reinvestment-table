@@ -85,6 +85,8 @@ class UniversalFetcher(BaseFetcher):
             if self._is_tpex(clean):
                 return clean, "TPEX", "Taiwan", "TWO"
             return clean, "TWSE", "Taiwan", "TW"
+        return clean, "NASDAQ", "United States", "US"
+
     @cached("stock_fetch_v3", ttl=6 * 3600)
     def fetch(self, symbol: str) -> StockData:
         clean, exchange, country, market = self._resolve_symbol(symbol)
@@ -131,11 +133,19 @@ class UniversalFetcher(BaseFetcher):
         if not inc_rows or not bs_rows:
             raise FinMindError(f"{clean} FinMind 財報為空")
 
-        def pivot_by_year(rows, type_candidates, prefer_year_end=True):
+        def pivot_by_year(rows, type_candidates, sum_quarters=False):
+            avail_types = {r.get("type") for r in rows}
+            chosen_type = None
+            for cand in type_candidates:
+                if cand in avail_types:
+                    chosen_type = cand
+                    break
+            if not chosen_type:
+                return {}
+
             buckets = defaultdict(list)
             for r in rows:
-                t = r.get("type")
-                if t not in type_candidates:
+                if r.get("type") != chosen_type:
                     continue
                 date_s = str(r.get("date") or "")
                 if len(date_s) < 7:
@@ -152,21 +162,23 @@ class UniversalFetcher(BaseFetcher):
 
             out = {}
             for y, items in buckets.items():
-                if prefer_year_end:
+                if sum_quarters:
+                    # 損益表：加總該年各季數值
+                    out[y] = sum(v for _, v in items)
+                else:
+                    # 資產負債表：取 12 月或最新一季
                     dec = [v for m, v in items if m == 12]
                     if dec:
                         out[y] = dec[-1]
                     else:
                         items_sorted = sorted(items, key=lambda x: x[0])
                         out[y] = items_sorted[-1][1]
-                else:
-                    out[y] = sorted(items, key=lambda x: x[0])[-1][1]
             return out
 
-        ni_map = pivot_by_year(inc_rows, ["IncomeAfterTaxes", "IncomeFromContinuingOperations"])
-        eq_map = pivot_by_year(bs_rows, ["EquityAttributableToOwnersOfParent", "Equity"])
-        ppe_map = pivot_by_year(bs_rows, ["PropertyPlantAndEquipment"])
-        lti_map = pivot_by_year(bs_rows, ["InvestmentAccountedForUsingEquityMethod"])
+        ni_map = pivot_by_year(inc_rows, ["IncomeAfterTaxes", "NetIncome", "IncomeFromContinuingOperations"], sum_quarters=True)
+        eq_map = pivot_by_year(bs_rows, ["EquityAttributableToOwnersOfParent", "Equity"], sum_quarters=False)
+        ppe_map = pivot_by_year(bs_rows, ["PropertyPlantAndEquipment"], sum_quarters=False)
+        lti_map = pivot_by_year(bs_rows, ["InvestmentAccountedForUsingEquityMethod"], sum_quarters=False)
 
         common_years = sorted(set(ni_map.keys()) & set(eq_map.keys()))
         if len(common_years) < 2:

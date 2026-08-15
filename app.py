@@ -464,15 +464,19 @@ if current_symbol:
                 <th style="text-align:left;font-size:10px;letter-spacing:2px;color:#8C8579;font-weight:500;padding:6px 8px;">備註</th>
               </tr></thead><tbody>{rows_html}</tbody></table>""", unsafe_allow_html=True)
 
-            st.markdown('<div class="sec-label">歷年財務趨勢</div>', unsafe_allow_html=True)
+            st.markdown('<div class="sec-label">歷年財務趨勢（近五年）</div>', unsafe_allow_html=True)
             chart_c1, chart_c2 = st.columns(2)
+
+            # 取近 5 個年度資料
+            recent_metrics = metrics[metrics.index <= 2025].tail(5) if (metrics.index > 2025).any() else metrics.tail(5)
+            valid_roe = recent_metrics["roe"].dropna()
+            valid_reinv = recent_metrics["reinvest_rate"].dropna()
 
             with chart_c1:
                 # ── ROE 走勢圖 ──
-                valid_roe = metrics["roe"].dropna()
                 fig_roe = go.Figure()
                 fig_roe.add_trace(go.Scatter(
-                    x=valid_roe.index, y=valid_roe,
+                    x=[str(y) for y in valid_roe.index], y=valid_roe,
                     mode="lines+markers+text",
                     name="ROE (%)",
                     line=dict(color="#1A7A40", width=2.5, shape="spline"),
@@ -505,7 +509,6 @@ if current_symbol:
 
             with chart_c2:
                 # ── 盈餘再投資率走勢圖 ──
-                valid_reinv = metrics["reinvest_rate"].dropna()
                 fig_reinv = go.Figure()
                 if not valid_reinv.empty:
                     bar_colors = [
@@ -513,7 +516,7 @@ if current_symbol:
                         for v in valid_reinv
                     ]
                     fig_reinv.add_trace(go.Bar(
-                        x=valid_reinv.index, y=valid_reinv,
+                        x=[str(y) for y in valid_reinv.index], y=valid_reinv,
                         name="盈再率 (%)",
                         marker_color=bar_colors,
                         opacity=0.85,
