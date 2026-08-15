@@ -2,7 +2,7 @@
 import streamlit as st
 import plotly.graph_objects as go
 from modules.fetchers.us_fetcher import UniversalFetcher
-from modules.calculators/metrics import FinancialMetricsCalculator
+from modules.calculators.metrics import FinancialMetricsCalculator
 from modules.valuators.valuation import ValueInvestingValuator
 
 st.set_page_config(page_title="Python 盈再表系統", layout="wide", page_icon="📈")
