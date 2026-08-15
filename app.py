@@ -331,18 +331,63 @@ if current_symbol:
             c5.markdown(_render_kpi_card("最大回撤", dd, val_cls=dc), unsafe_allow_html=True)
 
             if not result.yearly_metrics.empty:
-                st.markdown('<div class="sec-label">配息趨勢</div>', unsafe_allow_html=True)
+                st.markdown('<div class="sec-label">歷年趨勢分析</div>', unsafe_allow_html=True)
                 ym = result.yearly_metrics
-                fig = go.Figure()
-                if "yield" in ym.columns:
-                    fig.add_trace(go.Bar(x=ym.index, y=ym["yield"], marker_color="#6B9E7A", opacity=0.75))
-                fig.add_hline(y=result.avg_yield, line_dash="dot", line_color="#8A6A00",
-                    annotation_text=f"平均 {result.avg_yield}%", annotation_font_color="#8A6A00")
-                fig.update_layout(height=280, plot_bgcolor="#F7F5F0", paper_bgcolor="rgba(0,0,0,0)",
-                    font=dict(color="#5A5A5A", size=11, family="Noto Sans JP"), showlegend=False,
-                    margin=dict(l=0,r=0,t=16,b=0),
-                    xaxis=dict(gridcolor="#EDEAE4"), yaxis=dict(gridcolor="#EDEAE4"))
-                st.plotly_chart(fig, use_container_width=True)
+                etf_c1, etf_c2 = st.columns(2)
+
+                with etf_c1:
+                    fig_y = go.Figure()
+                    if "yield" in ym.columns:
+                        y_colors = ["#1A7A40" if y >= result.avg_yield else "#8A6A00" for y in ym["yield"]]
+                        fig_y.add_trace(go.Bar(
+                            x=ym.index, y=ym["yield"],
+                            marker_color=y_colors, opacity=0.85,
+                            text=ym["yield"].apply(lambda v: f"{v:.1f}%" if pd.notna(v) else ""),
+                            textposition="outside",
+                            textfont=dict(size=11, family="DM Mono", color="#1C1C1E"),
+                            name="年殖利率 (%)",
+                            width=0.4
+                        ))
+                    fig_y.add_hline(
+                        y=result.avg_yield, line_dash="dash", line_color="#8A6A00", line_width=1.2,
+                        annotation_text=f"平均 {result.avg_yield}%", annotation_position="top left",
+                        annotation_font=dict(size=10, color="#8A6A00")
+                    )
+                    fig_y.update_layout(
+                        title=dict(text="歷年殖利率 (%)", font=dict(size=13, family="Noto Sans JP", color="#1C1C1E")),
+                        height=310, plot_bgcolor="#F7F5F0", paper_bgcolor="rgba(0,0,0,0)",
+                        font=dict(color="#8C8579", size=11, family="Noto Sans JP"),
+                        showlegend=False,
+                        margin=dict(l=10, r=10, t=40, b=10),
+                        xaxis=dict(gridcolor="#EDEAE4", showgrid=False, type="category"),
+                        yaxis=dict(gridcolor="#EDEAE4", showgrid=True, zeroline=True, zerolinecolor="#DDD8CF")
+                    )
+                    st.plotly_chart(fig_y, use_container_width=True)
+
+                with etf_c2:
+                    fig_r = go.Figure()
+                    if "total_return" in ym.columns:
+                        r_colors = ["#1A7A40" if r >= 0 else "#B02020" for r in ym["total_return"]]
+                        fig_r.add_trace(go.Bar(
+                            x=ym.index, y=ym["total_return"],
+                            marker_color=r_colors, opacity=0.8,
+                            text=ym["total_return"].apply(lambda v: f"{v:+.1f}%" if pd.notna(v) else ""),
+                            textposition="outside",
+                            textfont=dict(size=11, family="DM Mono", color="#1C1C1E"),
+                            name="含息總報酬 (%)",
+                            width=0.4
+                        ))
+                    fig_r.add_hline(y=0, line_color="#8C8579", line_width=1)
+                    fig_r.update_layout(
+                        title=dict(text="年度含息總報酬率 (%)", font=dict(size=13, family="Noto Sans JP", color="#1C1C1E")),
+                        height=310, plot_bgcolor="#F7F5F0", paper_bgcolor="rgba(0,0,0,0)",
+                        font=dict(color="#8C8579", size=11, family="Noto Sans JP"),
+                        showlegend=False,
+                        margin=dict(l=10, r=10, t=40, b=10),
+                        xaxis=dict(gridcolor="#EDEAE4", showgrid=False, type="category"),
+                        yaxis=dict(gridcolor="#EDEAE4", showgrid=True, zeroline=True, zerolinecolor="#DDD8CF")
+                    )
+                    st.plotly_chart(fig_r, use_container_width=True)
 
         except Exception as e:
             st.error(f"無法取得 ETF `{current_symbol}` 的資料。\n\n**錯誤：** {e}")
@@ -420,28 +465,86 @@ if current_symbol:
               </tr></thead><tbody>{rows_html}</tbody></table>""", unsafe_allow_html=True)
 
             st.markdown('<div class="sec-label">歷年財務趨勢</div>', unsafe_allow_html=True)
-            fig = go.Figure()
-            fig.add_trace(go.Scatter(x=metrics.index, y=metrics["roe"],
-                mode="lines+markers", name="ROE (%)",
-                line=dict(color="#2D6A4F", width=2), marker=dict(size=5, color="#2D6A4F")))
-            fig.add_trace(go.Bar(x=metrics.index, y=metrics["reinvest_rate"],
-                name="盈再率 (%)", marker_color="#C0392B", opacity=0.25, yaxis="y2"))
-            fig.add_hline(y=15, line_dash="dot", line_color="#2D6A4F", line_width=1,
-                annotation_text="ROE 15%", annotation_font_color="#2D6A4F", annotation_font_size=10)
-            fig.add_hline(y=80, line_dash="dot", line_color="#C0392B", line_width=1,
-                annotation_text="盈再 80%", annotation_font_color="#C0392B",
-                annotation_font_size=10, yref="y2")
-            fig.update_layout(height=340,
-                plot_bgcolor="#F7F5F0", paper_bgcolor="rgba(0,0,0,0)",
-                font=dict(color="#8C8579", size=11, family="Noto Sans JP"),
-                legend=dict(orientation="h", y=1.06, x=0, bgcolor="rgba(0,0,0,0)"),
-                hovermode="x unified",
-                xaxis=dict(gridcolor="#EDEAE4", showgrid=True, zeroline=False),
-                yaxis=dict(title="ROE %", gridcolor="#EDEAE4", showgrid=True, zeroline=False),
-                yaxis2=dict(title="盈再率 %", overlaying="y", side="right",
-                            showgrid=False, range=[0, max(200, metrics["reinvest_rate"].max() * 1.3)]),
-                margin=dict(l=0, r=0, t=30, b=0))
-            st.plotly_chart(fig, use_container_width=True)
+            chart_c1, chart_c2 = st.columns(2)
+
+            with chart_c1:
+                # ── ROE 走勢圖 ──
+                valid_roe = metrics["roe"].dropna()
+                fig_roe = go.Figure()
+                fig_roe.add_trace(go.Scatter(
+                    x=valid_roe.index, y=valid_roe,
+                    mode="lines+markers+text",
+                    name="ROE (%)",
+                    line=dict(color="#1A7A40", width=2.5, shape="spline"),
+                    marker=dict(size=7, color="#1A7A40", line=dict(width=2, color="#FFFFFF")),
+                    fill="tozeroy",
+                    fillcolor="rgba(26, 122, 64, 0.08)",
+                    text=valid_roe.apply(lambda v: f"{v:.1f}%"),
+                    textposition="top center",
+                    textfont=dict(size=11, family="DM Mono", color="#1C1C1E")
+                ))
+                fig_roe.add_hline(
+                    y=15, line_dash="dash", line_color="#2D6A4F", line_width=1.2,
+                    annotation_text="ROE 15% 門檻", annotation_position="top left",
+                    annotation_font=dict(size=10, color="#2D6A4F")
+                )
+                min_roe = min(10, valid_roe.min() - 5 if not valid_roe.empty else 0)
+                max_roe = max(25, valid_roe.max() + 8 if not valid_roe.empty else 30)
+                fig_roe.update_layout(
+                    title=dict(text="股東權益報酬率 ROE (%)", font=dict(size=13, family="Noto Sans JP", color="#1C1C1E")),
+                    height=320,
+                    plot_bgcolor="#F7F5F0", paper_bgcolor="rgba(0,0,0,0)",
+                    font=dict(color="#8C8579", size=11, family="Noto Sans JP"),
+                    showlegend=False,
+                    hovermode="x unified",
+                    margin=dict(l=10, r=10, t=40, b=10),
+                    xaxis=dict(gridcolor="#EDEAE4", showgrid=False, type="category"),
+                    yaxis=dict(gridcolor="#EDEAE4", showgrid=True, zeroline=False, range=[min_roe, max_roe])
+                )
+                st.plotly_chart(fig_roe, use_container_width=True)
+
+            with chart_c2:
+                # ── 盈餘再投資率走勢圖 ──
+                valid_reinv = metrics["reinvest_rate"].dropna()
+                fig_reinv = go.Figure()
+                if not valid_reinv.empty:
+                    bar_colors = [
+                        "#1A7A40" if v < 40 else ("#D97706" if v <= 80 else "#B02020")
+                        for v in valid_reinv
+                    ]
+                    fig_reinv.add_trace(go.Bar(
+                        x=valid_reinv.index, y=valid_reinv,
+                        name="盈再率 (%)",
+                        marker_color=bar_colors,
+                        opacity=0.85,
+                        text=valid_reinv.apply(lambda v: f"{v:.1f}%"),
+                        textposition="outside",
+                        textfont=dict(size=11, family="DM Mono", color="#1C1C1E"),
+                        width=0.35
+                    ))
+                fig_reinv.add_hline(
+                    y=80, line_dash="dash", line_color="#B02020", line_width=1.2,
+                    annotation_text="80% 警戒線", annotation_position="top left",
+                    annotation_font=dict(size=10, color="#B02020")
+                )
+                fig_reinv.add_hline(
+                    y=40, line_dash="dot", line_color="#1A7A40", line_width=1,
+                    annotation_text="40% 優良門檻", annotation_position="top right",
+                    annotation_font=dict(size=10, color="#1A7A40")
+                )
+                max_reinv = max(100, valid_reinv.max() + 25 if not valid_reinv.empty else 100)
+                fig_reinv.update_layout(
+                    title=dict(text="盈餘再投資率 (%)", font=dict(size=13, family="Noto Sans JP", color="#1C1C1E")),
+                    height=320,
+                    plot_bgcolor="#F7F5F0", paper_bgcolor="rgba(0,0,0,0)",
+                    font=dict(color="#8C8579", size=11, family="Noto Sans JP"),
+                    showlegend=False,
+                    hovermode="x unified",
+                    margin=dict(l=10, r=10, t=40, b=10),
+                    xaxis=dict(gridcolor="#EDEAE4", showgrid=False, type="category"),
+                    yaxis=dict(gridcolor="#EDEAE4", showgrid=True, zeroline=True, zerolinecolor="#DDD8CF", range=[0, max_reinv])
+                )
+                st.plotly_chart(fig_reinv, use_container_width=True)
 
             with st.expander("財報明細"):
                 col_rename = {"net_income":"淨利","equity":"股東權益",
