@@ -14,6 +14,25 @@ from modules.utils.symbol_search import search_symbols, get_tw_stock_list_debug
 
 st.set_page_config(page_title="盈再分析", layout="wide", page_icon="📈", initial_sidebar_state="expanded")
 
+# 最優先注入：隱藏 sidebar 頂部的 keyboard_double 文字
+st.markdown("""
+<style>
+[data-testid="stSidebarCollapseButton"] { visibility: hidden; height: 0; overflow: hidden; }
+[data-testid="stSidebarCollapseButton"] * { display: none !important; }
+button[data-testid="baseButton-header"] { display: none !important; }
+/* Streamlit 1.x 的收合按鈕選法 */
+.st-emotion-cache-yfhhig { display: none !important; }
+.st-emotion-cache-1f3w014 { display: none !important; }
+/* 通殺：sidebar 頂部第一個按鈕 */
+section[data-testid="stSidebar"] > div > div:first-child button {
+    visibility: hidden !important;
+    height: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
 
 def _yield_to_price(target_yield: float, etf_data) -> float:
     if target_yield <= 0:
