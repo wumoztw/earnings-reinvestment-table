@@ -10,6 +10,7 @@ from modules.calculators.etf_metrics import EtfMetricsCalculator
 from modules.valuators.valuation import ValueInvestingValuator
 from modules.utils.twelve_client import has_twelve_data_key
 from modules.utils.finmind_client import has_finmind_token
+from modules.utils.symbol_search import search_symbols
 
 st.set_page_config(page_title="Python 盈再表系統", layout="wide", page_icon="📈")
 
@@ -78,6 +79,28 @@ mode = st.sidebar.radio(
 )
 st.session_state.mode = mode
 
+st.sidebar.divider()
+st.sidebar.subheader("🔎 不知道代號？搜尋公司名稱")
+search_query = st.sidebar.text_input(
+    "輸入公司名稱或關鍵字（中文/英文皆可）",
+    key="search_query_input",
+    placeholder="例：台積電 / Apple / 聯發科",
+)
+if search_query:
+    with st.sidebar:
+        with st.spinner("搜尋中..."):
+            search_results = search_symbols(search_query, max_results=8)
+    if search_results:
+        options = [f"{r['symbol']}｜{r['name']}｜{r['exchange']}" for r in search_results]
+        selected = st.sidebar.selectbox("搜尋結果（點選後按套用）", options, key="search_result_select")
+        if st.sidebar.button("📌 套用此代號", key="apply_search_symbol", type="secondary"):
+            selected_symbol = search_results[options.index(selected)]["symbol"]
+            st.session_state.symbol = selected_symbol
+            st.rerun()
+    else:
+        st.sidebar.caption("❌ 找不到符合的股票，請換個關鍵字試試。")
+
+st.sidebar.divider()
 symbol_input = st.sidebar.text_input(
     "輸入代號 (台股: 2330 / 美股: AAPL / ETF: 0050)",
     value=st.session_state.symbol,

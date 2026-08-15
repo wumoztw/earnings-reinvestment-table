@@ -107,3 +107,22 @@ class TwelveDataClient:
                       country: Optional[str] = None) -> Dict[str, Any]:
         """取得資產負債表，回傳含 balance_sheet list 的 dict。"""
         return self._fetch_financials("balance_sheet", symbol, period, outputsize, exchange, country)
+
+    def search_symbol(self, query: str, outputsize: int = 10) -> list:
+        """
+        搜尋股票代號，回傳 list of dict，每筆含：
+        symbol, instrument_name, exchange, country, type
+        """
+        url = f"{self.base_url}/symbol_search"
+        params: Dict[str, Any] = {"symbol": query, "outputsize": outputsize}
+        if self.apikey:
+            params["apikey"] = self.apikey
+        try:
+            response = requests.get(url, params=params, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+            if data.get("status") == "error":
+                return []
+            return data.get("data", [])
+        except Exception:
+            return []
