@@ -98,25 +98,23 @@ import re as _re
 _is_direct = bool(_re.fullmatch(r"[A-Za-z0-9\.\-]{1,10}", raw_input))
 
 if raw_input and not _is_direct:
-    # 有非代號字元（中文/空白）→ 搜尋模式
-    with st.sidebar:
-        with st.spinner("搜尋中..."):
-            search_results = search_symbols(raw_input, max_results=8)
-    if search_results:
-        options = {
-            f"{r['symbol']}｜{r['name']}｜{r['exchange']}": r["symbol"]
-            for r in search_results
-        }
-        selected_label = st.sidebar.selectbox(
-            "搜尋結果（選擇後按套用）",
-            list(options.keys()),
-        )
-        if st.sidebar.button("📌 套用此代號", key="apply_search_symbol", type="secondary"):
-            st.session_state.symbol = options[selected_label]
-            st.session_state._symbol_input_val = options[selected_label]
-            st.rerun()
-    else:
-        st.sidebar.caption("❌ 找不到符合的股票，請換個關鍵字試試。")
+    # 有非代號字元（中文/空白）→ 顯示外部搜尋連結
+    import urllib.parse as _up
+    _q = _up.quote(raw_input)
+    st.sidebar.markdown(
+        f"""**🔍 查詢「{raw_input}」的股票代號：**
+
+🇹🇼 台股
+- [Goodinfo 台灣股市資訊網](https://goodinfo.tw/tw/StockList.asp?SEARCH_KEY={_q})
+- [Yahoo 股市（台股）](https://tw.stock.yahoo.com/q/s?q={_q})
+
+🇺🇸 美股 / 全球
+- [Yahoo Finance](https://finance.yahoo.com/search/?q={_q})
+- [Finviz](https://finviz.com/search.ashx?q={_q})
+
+查到代號後，貼入上方輸入框即可。""",
+        unsafe_allow_html=False,
+    )
     symbol_input = st.session_state.symbol  # 維持上一次成功的代號
 elif raw_input and _is_direct:
     symbol_input = raw_input.upper()
