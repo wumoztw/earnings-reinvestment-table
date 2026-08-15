@@ -78,10 +78,41 @@ button[kind="header"] { display: none !important; }
 [data-testid="stSidebarCollapseButton"] { display: none !important; }
 [data-testid="stSidebarCollapseButton"] span { display: none !important; }
 .stSidebarCollapseButton { display: none !important; }
-/* 隱藏 sidebar 頂部多餘空白 */
 section[data-testid="stSidebar"] > div:first-child { padding-top: 16px !important; }
 .sb-label { font-size: 10px; letter-spacing: 2px; color: #8C8579; text-transform: uppercase; margin-bottom: 4px; }
+
+/* 自訂收合按鈕 */
+#sidebar-close-btn {
+    position: fixed;
+    top: 12px;
+    left: 12px;
+    z-index: 9999;
+    background: #F2EFE9;
+    border: 1px solid #DDD8CF;
+    border-radius: 4px;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 14px;
+    color: #5A5A5A;
+    transition: background 0.15s;
+}
+#sidebar-close-btn:hover { background: #E8E4DC; color: #1C1C1E; }
 </style>
+
+<div id="sidebar-close-btn" onclick="
+    const sidebar = window.parent.document.querySelector('[data-testid=stSidebar]');
+    const btn = window.parent.document.querySelector('[data-testid=stSidebarCollapseButton] button') ||
+                window.parent.document.querySelector('button[kind=header]');
+    if (btn) { btn.click(); }
+    else {
+        const collapsed = sidebar.getAttribute('aria-expanded');
+        sidebar.setAttribute('aria-expanded', collapsed === 'true' ? 'false' : 'true');
+    }
+" title="收合選單">‹</div>
 """, unsafe_allow_html=True)
 
 st.sidebar.markdown('<p style="font-size:18px;font-weight:700;color:#1C1C1E;margin:0;letter-spacing:1px;">盈再分析</p>', unsafe_allow_html=True)
